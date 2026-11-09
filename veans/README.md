@@ -83,6 +83,8 @@ veans update <id>              --status, --title, --priority, --label-add/remove
                                --description, --description-replace-old/new, --description-append,
                                --comment, --reason, --if-unchanged-since
 veans claim <id>               assign the bot, move to In Progress, tag with current branch label
+veans attach <id> <file>...    upload files as task attachments (multipart); refuses
+                               missing/empty files and files over the server's max_file_size
 veans api METHOD PATH          raw REST passthrough — escape hatch for endpoints not wrapped here
 veans login                    re-mint the bot's token (rotation)
 veans version
