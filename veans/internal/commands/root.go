@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Package commands wires the cobra command tree. Each subcommand lives in a
-// sibling file. The agent-facing commands (list/show/create/update/claim/api)
+// sibling file. The agent-facing commands (list/show/create/update/claim/attach/api)
 // emit JSON unconditionally; only init and login speak human prose.
 package commands
 
@@ -46,6 +46,7 @@ func Root(version string) *cobra.Command {
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newClaimCmd())
 	root.AddCommand(newPrimeCmd())
+	root.AddCommand(newAttachCmd())
 	root.AddCommand(newAPICmd())
 	root.AddCommand(newLoginCmd())
 
