@@ -5,7 +5,7 @@
 # Usage: scripts/build-fork.sh [--allow-dirty]
 #   OUT_DIR  where the artifact goes (default: dist/fork)
 #
-# Output: $OUT_DIR/vikunja-<git describe>-<short sha>-linux-amd64 and a .sha256 next to it.
+# Output: $OUT_DIR/vikunja-<version>[-<sha>]-linux-amd64 and a .sha256 next to it.
 # The version embedded in the binary is `git describe --tags` (set by magefile.go), so a
 # branch without extra commits reports exactly the upstream tag.
 set -euo pipefail
@@ -27,10 +27,14 @@ if [[ $ALLOW_DIRTY -eq 0 && -n "$(git status --porcelain --untracked-files=no)" 
 	exit 1
 fi
 
-describe="$(git describe --tags --always --abbrev=10)"
+# Same string magefile.go embeds as the version: v2.7.1 on the tag, v2.7.1-<n>-<sha> after it.
+version="$(git describe --tags --always --abbrev=10)"
+version="${version/-g/-}"
 sha="$(git rev-parse --short=10 HEAD)"
 arch="$(go env GOOS 2>/dev/null || echo linux)-$(go env GOARCH 2>/dev/null || echo amd64)"
-artifact="vikunja-${describe}-${sha}-${arch}"
+artifact="vikunja-${version}-${arch}"
+# on the bare tag the version carries no commit; add it to the file name
+[[ "$version" == *"$sha"* ]] || artifact="vikunja-${version}-${sha}-${arch}"
 [[ $ALLOW_DIRTY -eq 1 ]] && artifact="${artifact}-dirty"
 
 # Toolchain versions are pinned in mise.toml at the tag (node, pnpm, go).
@@ -47,7 +51,7 @@ echo "==> frontend"
 	pnpm build
 )
 
-echo "==> api ($describe @ $sha)"
+echo "==> api ($version @ $sha)"
 rm -f vikunja
 mage build:build
 
