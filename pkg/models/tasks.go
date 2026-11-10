@@ -1303,6 +1303,12 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		t.ProjectID = ot.ProjectID
 	}
 
+	// The merge below overwrites ot, so the previous project is only known here.
+	var oldProjectID int64
+	if ot.ProjectID != t.ProjectID {
+		oldProjectID = ot.ProjectID
+	}
+
 	// Get the stored reminders
 	reminders, err := getRemindersForTasks(s, []int64{t.ID})
 	if err != nil {
@@ -1685,8 +1691,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	t.Updated = nt.Updated
 
 	events.DispatchOnCommit(s, &TaskUpdatedEvent{
-		Task: t,
-		Doer: doerFromAuth(s, a),
+		Task:         t,
+		Doer:         doerFromAuth(s, a),
+		OldProjectID: oldProjectID,
 	})
 
 	return updateProjectLastUpdated(s, &Project{ID: t.ProjectID})

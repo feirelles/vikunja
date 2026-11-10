@@ -23,8 +23,11 @@ import (
 	"sync"
 	"time"
 
+	"code.vikunja.io/api/pkg/db"
 	"code.vikunja.io/api/pkg/log"
+	"code.vikunja.io/api/pkg/models"
 	"code.vikunja.io/api/pkg/modules/auth"
+	"code.vikunja.io/api/pkg/user"
 
 	"github.com/coder/websocket"
 )
@@ -38,6 +41,18 @@ const (
 
 var checkUserTokenSession = auth.CheckUserTokenSession
 
+// canReadProject decides whether a user may subscribe to a project's events.
+// A missing or trashed project reads as no access.
+var canReadProject = func(userID, projectID int64) (bool, error) {
+	s := db.NewSession()
+	defer s.Close()
+	can, _, err := (&models.Project{ID: projectID}).CanRead(s, &user.User{ID: userID})
+	if models.IsErrProjectDoesNotExist(err) {
+		return false, nil
+	}
+	return can, err
+}
+
 // Connection wraps a single WebSocket connection.
 type Connection struct {
 	ws  *websocket.Conn
@@ -48,6 +63,7 @@ type Connection struct {
 	sessionID     string
 	authenticated bool
 	subscriptions map[string]bool
+	projects      map[int64]bool
 	expiryTimer   *time.Timer
 
 	send chan OutgoingMessage
@@ -60,6 +76,7 @@ func NewConnection(ws *websocket.Conn, hub *Hub) *Connection {
 		hub:           hub,
 		authenticated: false,
 		subscriptions: make(map[string]bool),
+		projects:      make(map[int64]bool),
 		send:          make(chan OutgoingMessage, sendBufSize),
 	}
 }
@@ -83,6 +100,40 @@ func (c *Connection) IsSubscribed(event string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.subscriptions[event]
+}
+
+// Project subscriptions are changed through the hub, which keeps the project index in step.
+func (c *Connection) subscribeProject(projectID int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.projects == nil {
+		c.projects = make(map[int64]bool)
+	}
+	c.projects[projectID] = true
+}
+
+func (c *Connection) unsubscribeProject(projectID int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.projects, projectID)
+}
+
+// IsSubscribedToProject checks if the connection receives the project's task events.
+func (c *Connection) IsSubscribedToProject(projectID int64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.projects[projectID]
+}
+
+// SubscribedProjects lists the projects the connection is subscribed to.
+func (c *Connection) SubscribedProjects() []int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	ids := make([]int64, 0, len(c.projects))
+	for id := range c.projects {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // IsAuthenticated returns whether the connection is authenticated.
@@ -168,6 +219,10 @@ func (c *Connection) handleMessage(ctx context.Context, msg IncomingMessage) boo
 			c.sendError("auth_required", "")
 			return true
 		}
+		if msg.Event == EventProject {
+			c.handleProjectSubscribe(msg.ProjectID)
+			return true
+		}
 		if !isValidEvent(msg.Event) {
 			c.sendError("invalid_event", msg.Event)
 			return true
@@ -179,12 +234,43 @@ func (c *Connection) handleMessage(ctx context.Context, msg IncomingMessage) boo
 			c.sendError("auth_required", "")
 			return true
 		}
+		if msg.Event == EventProject {
+			if c.hub != nil {
+				c.hub.UnsubscribeProject(c, msg.ProjectID)
+			}
+			log.Debugf("WebSocket: user %d unsubscribed from project %d", c.UserID(), msg.ProjectID)
+			return true
+		}
 		c.Unsubscribe(msg.Event)
 		log.Debugf("WebSocket: user %d unsubscribed from %s", c.UserID(), msg.Event)
 	default:
 		log.Warningf("WebSocket: unknown action %q", msg.Action)
 	}
 	return true
+}
+
+// handleProjectSubscribe checks read access before indexing the connection
+// under the project. The verdict seeds the access cache so a fresh
+// subscription is not undone by a stale negative entry on the next event.
+func (c *Connection) handleProjectSubscribe(projectID int64) {
+	if projectID <= 0 || c.hub == nil {
+		c.sendProjectError("invalid_project", projectID)
+		return
+	}
+	userID := c.UserID()
+	can, err := canReadProject(userID, projectID)
+	if err != nil {
+		log.Errorf("WebSocket: could not check access of user %d to project %d: %v", userID, projectID, err)
+		c.sendProjectError("internal_error", projectID)
+		return
+	}
+	if !can {
+		c.sendProjectError(ReasonForbidden, projectID)
+		return
+	}
+	projectAccess.set(userID, projectID, true)
+	c.hub.SubscribeProject(c, projectID)
+	log.Debugf("WebSocket: user %d subscribed to project %d", userID, projectID)
 }
 
 func (c *Connection) handleAuth(ctx context.Context, token string) bool {
@@ -286,10 +372,19 @@ func (c *Connection) writeMessageDirect(ctx context.Context, msg OutgoingMessage
 }
 
 func (c *Connection) sendError(errMsg, event string) {
+	c.trySend(OutgoingMessage{Error: errMsg, Event: event})
+}
+
+func (c *Connection) sendProjectError(errMsg string, projectID int64) {
+	c.trySend(OutgoingMessage{Error: errMsg, Event: EventProject, ProjectID: projectID})
+}
+
+// trySend queues a message without blocking; a full buffer drops it.
+func (c *Connection) trySend(msg OutgoingMessage) {
 	select {
-	case c.send <- OutgoingMessage{Error: errMsg, Event: event}:
+	case c.send <- msg:
 	default:
-		log.Warningf("WebSocket: send buffer full, dropping error")
+		log.Warningf("WebSocket: send buffer full for user %d, dropping message", c.UserID())
 	}
 }
 
