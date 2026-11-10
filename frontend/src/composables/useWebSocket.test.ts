@@ -596,3 +596,90 @@ it('stops the socket when the server rejects a re-auth', () => {
 	expect(FakeSocket.instances).toHaveLength(1)
 	expect(ws.status.value).toBe('idle')
 })
+
+function taskFrame(data: Record<string, unknown>) {
+	return new MessageEvent('message', {data: JSON.stringify({
+		event: 'task.updated',
+		data,
+	})})
+}
+
+it('subscribes to a project once and routes its task frames to every subscriber', () => {
+	const {ws, socket} = authenticatedSocket()
+	const first = vi.fn()
+	const second = vi.fn()
+	const unsubscribeFirst = ws.subscribeProject(5, first)
+	const unsubscribeSecond = ws.subscribeProject(5, second)
+	expect(socket.send).toHaveBeenCalledTimes(1)
+	expect(JSON.parse(socket.send.mock.calls[0][0])).toEqual({
+		action: 'subscribe',
+		event: 'project',
+		project_id: 5,
+	})
+
+	socket.onmessage?.(taskFrame({project_id: 5, task_id: 1}))
+	socket.onmessage?.(taskFrame({project_id: 6, task_id: 2}))
+	expect(first).toHaveBeenCalledTimes(1)
+	expect(second).toHaveBeenCalledTimes(1)
+	expect(first.mock.calls[0][0].data).toEqual({project_id: 5, task_id: 1})
+
+	unsubscribeFirst()
+	expect(socket.send).toHaveBeenCalledTimes(1)
+	unsubscribeSecond()
+	expect(JSON.parse(socket.send.mock.calls[1][0])).toEqual({
+		action: 'unsubscribe',
+		event: 'project',
+		project_id: 5,
+	})
+	socket.onmessage?.(taskFrame({project_id: 5, task_id: 3}))
+	expect(first).toHaveBeenCalledTimes(1)
+})
+
+it('delivers a move once to a subscriber of both projects', () => {
+	const {ws, socket} = authenticatedSocket()
+	const onTask = vi.fn()
+	ws.subscribeProject(5, onTask)
+	ws.subscribeProject(6, onTask)
+
+	socket.onmessage?.(taskFrame({project_id: 6, old_project_id: 5, task_id: 1}))
+
+	expect(onTask).toHaveBeenCalledTimes(1)
+})
+
+it('sends project subscriptions after authenticating', () => {
+	vi.stubGlobal('WebSocket', FakeSocket)
+	window.API_URL = 'http://localhost'
+	const ws = useWebSocket()
+	ws.subscribeProject(5, vi.fn())
+	ws.connect()
+	const socket = FakeSocket.instances[0]
+	socket.onopen?.()
+	socket.onmessage?.(authSuccessFrame())
+
+	expect(socket.send.mock.calls.map(call => JSON.parse(call[0]))).toContainEqual({
+		action: 'subscribe',
+		event: 'project',
+		project_id: 5,
+	})
+})
+
+it('keeps the project callbacks when the server drops the subscription', () => {
+	const {ws, socket} = authenticatedSocket()
+	const onTask = vi.fn()
+	ws.subscribeProject(5, onTask)
+
+	socket.onmessage?.(new MessageEvent('message', {data: JSON.stringify({
+		action: 'unsubscribed',
+		event: 'project',
+		project_id: 5,
+		reason: 'forbidden',
+	})}))
+	socket.onmessage?.(new MessageEvent('message', {data: JSON.stringify({
+		error: 'forbidden',
+		event: 'project',
+		project_id: 5,
+	})}))
+
+	expect(socket.readyState).toBe(FakeSocket.OPEN)
+	expect(onTask).not.toHaveBeenCalled()
+})

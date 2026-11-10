@@ -369,6 +369,7 @@ import {getTaskIdentifier} from '@/helpers/task'
 import { camelCase } from 'change-case'
 import {isSavedFilterProject} from '@/client/queries/projects'
 import {useProjects} from '@/composables/useProjects'
+import {useProjectLiveUpdates} from '@/composables/useProjectLiveUpdates'
 
 const props = defineProps<{
 	isLoadingProject: boolean,
@@ -377,6 +378,7 @@ const props = defineProps<{
 }>()
 
 const projectList = useProjects()
+useProjectLiveUpdates(() => props.projectId)
 
 const columnsTrigger = ref<ComponentPublicInstance | null>(null)
 const columnsTriggerEl = computed<HTMLElement | null>(() => (columnsTrigger.value?.$el as HTMLElement) ?? null)

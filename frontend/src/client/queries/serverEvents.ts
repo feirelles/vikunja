@@ -3,7 +3,8 @@ import {
 	type QueryClient,
 	type QueryKey,
 } from '@tanstack/vue-query'
-import type {TimeEntry} from '@/client/generated'
+import {tasksRead, type TimeEntry} from '@/client/generated'
+import {ApiError} from '@/client/problem'
 import {contextMutationOptions} from './contextMutation'
 import {
 	cachedTaskIdOf,
@@ -15,10 +16,22 @@ import {
 } from './timeEntries'
 import {notificationKeys} from './notifications'
 import {commentKeys} from './comments'
-import {taskKeys} from './tasks'
+import {
+	normalizeTask,
+	taskKeys,
+	type TaskResponse,
+} from './tasks'
+import {
+	BUCKET_TASK_PARAMS,
+	kanbanKeys,
+} from './kanban'
 import {
 	invalidateTaskMembership,
+	placeTaskInBoards,
+	removeTaskEverywhere,
+	replaceTaskEverywhere,
 	taskQueryKeys,
+	type TaskPlacement,
 } from './taskCache'
 
 export const CACHE_EVENTS = [
@@ -30,12 +43,31 @@ export const CACHE_EVENTS = [
 
 export type ServerCacheEventName = typeof CACHE_EVENTS[number]
 
+// Pushed to the subscribers of a project; the payload carries ids and placements only.
+export const PROJECT_TASK_EVENTS = [
+	'task.created',
+	'task.updated',
+	'task.deleted',
+	'task.restored',
+] as const
+
+export type ProjectTaskEventName = typeof PROJECT_TASK_EVENTS[number]
+
+export type ProjectTaskEvent = {
+	kind: ProjectTaskEventName,
+	taskId: number,
+	projectId: number,
+	oldProjectId?: number,
+	placements: TaskPlacement[],
+}
+
 type TimerEvent = 'timer.created' | 'timer.updated' | 'timer.deleted'
 export type ServerCacheEvent =
 	| {
 		kind: TimerEvent,
 		entry: TimeEntryResponse,
 	}
+	| ProjectTaskEvent
 	| {
 		kind: 'notifications',
 		taskId?: number,
@@ -77,6 +109,66 @@ export function parseServerCacheEvent(
 	return null
 }
 
+function isProjectTaskEventName(event: string): event is ProjectTaskEventName {
+	return (PROJECT_TASK_EVENTS as readonly string[]).includes(event)
+}
+
+function parsePlacements(value: unknown): TaskPlacement[] {
+	if (!Array.isArray(value)) return []
+	const placements: TaskPlacement[] = []
+	for (const item of value) {
+		if (!isRecord(item) || typeof item.project_view_id !== 'number') continue
+		placements.push({
+			project_view_id: item.project_view_id,
+			...(typeof item.bucket_id === 'number' ? {bucket_id: item.bucket_id} : {}),
+			...(typeof item.position === 'number' ? {position: item.position} : {}),
+		})
+	}
+	return placements
+}
+
+export function parseProjectTaskEvent(event: string | undefined, data: unknown): ProjectTaskEvent | null {
+	if (event === undefined || !isProjectTaskEventName(event) || !isRecord(data)) return null
+	if (typeof data.task_id !== 'number' || data.task_id <= 0) return null
+	if (typeof data.project_id !== 'number' || data.project_id <= 0) return null
+	return {
+		kind: event,
+		taskId: data.task_id,
+		projectId: data.project_id,
+		...(typeof data.old_project_id === 'number' && data.old_project_id > 0 ? {oldProjectId: data.old_project_id} : {}),
+		placements: parsePlacements(data.placements),
+	}
+}
+
+function isProjectTaskEvent(event: ServerCacheEvent): event is ProjectTaskEvent {
+	return 'taskId' in event && 'placements' in event
+}
+
+// The event names the task only; the task itself comes through the REST API with the reader's
+// permissions. Gone (deleted meanwhile) or forbidden (not shared with the reader) both drop it.
+async function fetchLiveTask(id: number): Promise<TaskResponse | 'gone'> {
+	try {
+		return normalizeTask((await tasksRead({
+			path: {task: id},
+			query: {expand: BUCKET_TASK_PARAMS.expand},
+		})).data)
+	} catch (cause) {
+		if (cause instanceof ApiError && (cause.status === 403 || cause.status === 404)) return 'gone'
+		throw cause
+	}
+}
+
+function applyProjectTaskEvent(client: QueryClient, event: ProjectTaskEvent, task: TaskResponse | 'gone' | undefined) {
+	if (event.kind === 'task.deleted' || task === 'gone') {
+		removeTaskEverywhere(client, event.taskId)
+		return
+	}
+	if (task === undefined) return
+	// Boards are patched rather than refetched: a refetch would drop every loaded page but the first.
+	replaceTaskEverywhere(client, task)
+	placeTaskInBoards(client, task, event.placements, event.kind !== 'task.updated' || event.oldProjectId !== undefined)
+}
+
 const startsWith = (key: QueryKey, prefix: readonly unknown[]) => prefix.every((part, index) => key[index] === part)
 const isTaskDetailKey = (key: QueryKey) => startsWith(key, taskKeys.details)
 
@@ -99,8 +191,18 @@ async function invalidateCachedTask(client: QueryClient, taskId: number | undefi
 
 export function serverCacheEventMutationOptions() {
 	return contextMutationOptions({
-		mutationFn: async (event: ServerCacheEvent) => event,
+		mutationFn: async (event: ServerCacheEvent): Promise<TaskResponse | 'gone' | undefined> => {
+			if (!isProjectTaskEvent(event) || event.kind === 'task.deleted') return undefined
+			return fetchLiveTask(event.taskId)
+		},
+		onSuccess: (task, event, client) => {
+			if (isProjectTaskEvent(event)) applyProjectTaskEvent(client, event, task)
+		},
 		onSettled: (event, client) => {
+			if (isProjectTaskEvent(event)) {
+				// Lists are sorted and filtered by the server, so membership is theirs to decide.
+				return invalidateTaskMembership(client, event.taskId, 'active')
+			}
 			if ('entry' in event) {
 				// The payload carries only the new task, so a reassignment would leave the old one's count stale.
 				const previousTaskId = event.kind === 'timer.updated' ? cachedTaskIdOf(client, event.entry.id) : undefined
@@ -131,12 +233,14 @@ export function serverCacheEventMutationOptions() {
 						&& SUBSCRIBE_SWEEP_KEYS.some(prefix => startsWith(query.queryKey, prefix)),
 				})
 			}
+			// A dropped connection may have missed task events, so the open collections reload too.
 			return Promise.all([
 				client.invalidateQueries({queryKey: timeEntryKeys.all}),
 				client.invalidateQueries({queryKey: notificationKeys.all}),
 				client.invalidateQueries({queryKey: commentKeys.all}),
 				client.invalidateQueries({queryKey: taskKeys.details}),
-				invalidateTaskMembership(client),
+				invalidateTaskMembership(client, undefined, 'active'),
+				client.invalidateQueries({queryKey: kanbanKeys.all, refetchType: 'active'}),
 			])
 		},
 		toastError: () => false,

@@ -336,6 +336,7 @@ import {useTaskDragToProject} from '@/composables/useTaskDragToProject'
 import type {TaskFilterParams, TaskResponse} from '@/client/queries/tasks'
 import type {ProjectView} from '@/client/generated'
 import {createProjectViewUpdate, useUpdateProjectViewMutation} from '@/client/queries/projectViews'
+import {useProjectLiveUpdates} from '@/composables/useProjectLiveUpdates'
 
 const props = defineProps<{
 	isLoadingProject: boolean,
@@ -346,6 +347,7 @@ const BucketDraggable = draggableFor<BucketResponse>()
 const TaskDraggable = draggableFor<TaskResponse>()
 
 const projectId = toRef(props, 'projectId')
+useProjectLiveUpdates(projectId)
 
 const DRAG_OPTIONS = {
 	// sortable options

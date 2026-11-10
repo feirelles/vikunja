@@ -8,9 +8,14 @@ import {
 	QueryObserver,
 } from '@tanstack/vue-query'
 import {
+	parseProjectTaskEvent,
 	parseServerCacheEvent,
 	serverCacheEventMutationOptions,
+	type ProjectTaskEvent,
 } from './serverEvents'
+import {ApiError} from '@/client/problem'
+import {projectKeys} from './projects'
+import {normalizeBucket, type BoardData} from './kanban'
 import {
 	timeEntryKeys,
 	normalizeTimeEntry,
@@ -22,11 +27,17 @@ import {notificationKeys} from './notifications'
 import {
 	taskKeys,
 	normalizeTask,
+	type TaskResponse,
 } from './tasks'
 import {kanbanKeys} from './kanban'
 vi.mock('@/message', () => ({
 	error: vi.fn(),
 	success: vi.fn(),
+}))
+const sdk = vi.hoisted(() => ({tasksRead: vi.fn()}))
+vi.mock('@/client/generated', async importOriginal => ({
+	...await importOriginal<typeof import('@/client/generated')>(),
+	tasksRead: sdk.tasksRead,
 }))
 
 const RUNNING_ENTRY = normalizeTimeEntry({
@@ -357,4 +368,188 @@ it('refreshes task details and marks board membership stale after reconnecting',
 	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute({kind: 'reconnect'})
 	expect(client.getQueryState(boardKey)?.isInvalidated).toBe(true)
 	expect(client.getQueryState(taskKeys.detail(1))?.isInvalidated).toBe(true)
+})
+
+it('parses a project task frame and rejects malformed ones', () => {
+	expect(parseProjectTaskEvent('task.updated', {
+		project_id: 1,
+		task_id: 9,
+		doer_id: 7,
+		old_project_id: 2,
+		placements: [
+			{project_view_id: 3, bucket_id: 4, position: 65536},
+			{project_view_id: 5},
+			{bucket_id: 6},
+			'junk',
+		],
+	})).toEqual({
+		kind: 'task.updated',
+		taskId: 9,
+		projectId: 1,
+		oldProjectId: 2,
+		placements: [
+			{project_view_id: 3, bucket_id: 4, position: 65536},
+			{project_view_id: 5},
+		],
+	})
+	expect(parseProjectTaskEvent('task.deleted', {project_id: 1, task_id: 9})).toEqual({
+		kind: 'task.deleted',
+		taskId: 9,
+		projectId: 1,
+		placements: [],
+	})
+	expect(parseProjectTaskEvent('timer.created', {project_id: 1, task_id: 9})).toBeNull()
+	expect(parseProjectTaskEvent(undefined, {project_id: 1, task_id: 9})).toBeNull()
+	expect(parseProjectTaskEvent('task.updated', null)).toBeNull()
+	expect(parseProjectTaskEvent('task.updated', {project_id: 1})).toBeNull()
+	expect(parseProjectTaskEvent('task.updated', {project_id: 0, task_id: 9})).toBeNull()
+})
+
+function projectBoard(client: QueryClient, project: number, view: number, tasks: {id: number, position: number}[], count = tasks.length) {
+	const key = kanbanKeys.board(project, view)
+	client.setQueryData(projectKeys.detail(project), {
+		id: project,
+		views: [{
+			id: view,
+			bucket_configuration_mode: 'manual',
+			default_bucket_id: 3,
+		}],
+	})
+	client.setQueryData(key, {
+		buckets: [
+			normalizeBucket({id: 3, count, tasks: tasks.map(task => ({...task, project_id: project, bucket_id: 3, title: 'old'}))}),
+			normalizeBucket({id: 4, count: 0, tasks: []}),
+		],
+		pages: {3: 1, 4: 1},
+	})
+	return key
+}
+
+const boardShape = (client: QueryClient, key: ReturnType<typeof kanbanKeys.board>) =>
+	client.getQueryData<BoardData>(key)?.buckets.map(bucket => ({
+		count: bucket.count,
+		tasks: bucket.tasks.map(task => [task.id, task.title, task.position]),
+	}))
+
+function liveEvent(event: Partial<ProjectTaskEvent> & Pick<ProjectTaskEvent, 'kind'>): ProjectTaskEvent {
+	return {
+		taskId: 9,
+		projectId: 1,
+		placements: [],
+		...event,
+	}
+}
+
+it('loads an updated task from the API and moves its card to the stored bucket', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}, {id: 1, position: 200}])
+	const list = taskKeys.list({project: 1})
+	client.setQueryData(list, {items: [normalizeTask({id: 9, title: 'old', project_id: 1})], total: 1, page: 1, per_page: 25, total_pages: 1})
+	client.setQueryData(taskKeys.detail(9), normalizeTask({id: 9, title: 'old', project_id: 1}))
+	sdk.tasksRead.mockResolvedValue({data: {id: 9, project_id: 1, title: 'new', done: true}})
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({
+		kind: 'task.updated',
+		placements: [{project_view_id: 2, bucket_id: 4, position: 50}],
+	}))
+
+	expect(sdk.tasksRead).toHaveBeenCalledWith(expect.objectContaining({path: {task: 9}}))
+	expect(boardShape(client, board)).toEqual([
+		{count: 1, tasks: [[1, 'old', 200]]},
+		{count: 1, tasks: [[9, 'new', 50]]},
+	])
+	expect(client.getQueryData<TaskResponse>(taskKeys.detail(9))?.title).toBe('new')
+	expect(client.getQueryState(list)?.isInvalidated).toBe(true)
+	expect(client.getQueryState(board)?.isInvalidated).toBe(true)
+	expect(client.getQueryState(board)?.fetchStatus).toBe('idle')
+})
+
+it('inserts a created task by position and counts it', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 1, position: 100}, {id: 2, position: 300}])
+	sdk.tasksRead.mockResolvedValue({data: {id: 9, project_id: 1, title: 'new'}})
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({
+		kind: 'task.created',
+		placements: [{project_view_id: 2, bucket_id: 3, position: 200}],
+	}))
+
+	expect(boardShape(client, board)).toEqual([
+		{count: 3, tasks: [[1, 'old', 100], [9, 'new', 200], [2, 'old', 300]]},
+		{count: 0, tasks: []},
+	])
+})
+
+it('drops a deleted task without asking the API', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}, {id: 1, position: 200}])
+	client.setQueryData(taskKeys.detail(9), normalizeTask({id: 9, project_id: 1}))
+	sdk.tasksRead.mockReset()
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({kind: 'task.deleted'}))
+
+	expect(sdk.tasksRead).not.toHaveBeenCalled()
+	expect(boardShape(client, board)).toEqual([
+		{count: 1, tasks: [[1, 'old', 200]]},
+		{count: 0, tasks: []},
+	])
+	expect(client.getQueryData(taskKeys.detail(9))).toBeUndefined()
+})
+
+it.each([403, 404])('drops a task the API answers %d for', async status => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	sdk.tasksRead.mockRejectedValue(new ApiError({status, detail: 'gone'}))
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({kind: 'task.updated'}))
+
+	expect(boardShape(client, board)).toEqual([
+		{count: 0, tasks: []},
+		{count: 0, tasks: []},
+	])
+})
+
+it('keeps the cache when loading the task fails for another reason', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	sdk.tasksRead.mockRejectedValue(new ApiError({status: 500, detail: 'boom'}))
+
+	await expect(client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({kind: 'task.updated'})))
+		.rejects.toThrow('boom')
+
+	expect(boardShape(client, board)?.[0].tasks).toEqual([[9, 'old', 100]])
+})
+
+it('removes a moved task from the previous project and places it in the new one', async () => {
+	const client = new QueryClient()
+	const oldBoard = projectBoard(client, 2, 5, [{id: 9, position: 100}])
+	const newBoard = projectBoard(client, 1, 2, [{id: 1, position: 100}])
+	sdk.tasksRead.mockResolvedValue({data: {id: 9, project_id: 1, title: 'moved'}})
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(liveEvent({
+		kind: 'task.updated',
+		oldProjectId: 2,
+		placements: [{project_view_id: 2, bucket_id: 4, position: 50}],
+	}))
+
+	expect(boardShape(client, oldBoard)?.[0]).toEqual({count: 0, tasks: []})
+	expect(boardShape(client, newBoard)).toEqual([
+		{count: 1, tasks: [[1, 'old', 100]]},
+		{count: 1, tasks: [[9, 'moved', 50]]},
+	])
+})
+
+it('refetches open boards and lists on a reconnect', async () => {
+	const client = new QueryClient()
+	const boardFn = vi.fn(() => ({buckets: [], pages: {}}))
+	const unsubscribe = new QueryObserver(client, {
+		queryKey: kanbanKeys.board(1, 2),
+		queryFn: boardFn,
+	}).subscribe(() => {})
+	await vi.waitFor(() => expect(boardFn).toHaveBeenCalledTimes(1))
+
+	await client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute({kind: 'reconnect'})
+
+	await vi.waitFor(() => expect(boardFn).toHaveBeenCalledTimes(2))
+	unsubscribe()
 })
