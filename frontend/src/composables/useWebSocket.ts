@@ -16,8 +16,13 @@ interface WebSocketEvent {
 	action?: string
 	success?: boolean
 	error?: string
+	reason?: string
+	project_id?: number
 	data?: unknown
 }
+
+// The subscribe scope for a project's task events; the pushed frames are named task.*.
+const PROJECT_EVENT = 'project'
 
 const RECONNECT_BASE_DELAY = 1000
 const RECONNECT_MAX_DELAY = 30000
@@ -30,6 +35,7 @@ let socketContext: ClientRequestContext | null = null
 let reconnectAttempt = 0
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const subscriptions = new Map<string, Set<MessageCallback>>()
+const projectSubscriptions = new Map<number, Set<MessageCallback>>()
 const status = ref<'idle' | 'connecting' | 'authenticating' | 'authenticated'>('idle')
 const authenticated = computed(() => status.value === 'authenticated')
 const mayHaveMissedEvents = ref(false)
@@ -89,9 +95,41 @@ function reauthenticate() {
 
 onTokenRefreshed(reauthenticate)
 
+function projectSubscribeFrame(action: 'subscribe' | 'unsubscribe', projectId: number) {
+	return {
+		action,
+		event: PROJECT_EVENT,
+		project_id: projectId,
+	}
+}
+
 function resubscribeAll() {
 	for (const event of subscriptions.keys()) {
 		sendMessage({action: 'subscribe', event})
+	}
+	for (const projectId of projectSubscriptions.keys()) {
+		sendMessage(projectSubscribeFrame('subscribe', projectId))
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null
+}
+
+// Task frames carry the project in their payload; a move names the previous project too, so both
+// sets of subscribers hear it, each callback once.
+function routeProjectEvent(msg: WebSocketEvent) {
+	if (!isRecord(msg.data)) {
+		return
+	}
+	const delivered = new Set<MessageCallback>()
+	for (const projectId of [msg.data.project_id, msg.data.old_project_id]) {
+		if (typeof projectId !== 'number') continue
+		for (const callback of projectSubscriptions.get(projectId) ?? []) {
+			if (delivered.has(callback)) continue
+			delivered.add(callback)
+			callback(msg)
+		}
 	}
 }
 
@@ -144,6 +182,17 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
+	// The server drops a project subscription when the user loses access. The callbacks stay: a
+	// later subscribe is checked again, and the pages that hold the data refetch on their own.
+	if (msg.action === 'unsubscribed' && msg.event === PROJECT_EVENT) {
+		console.debug(`WebSocket: unsubscribed from project ${msg.project_id}: ${msg.reason}`)
+		return
+	}
+	if (msg.error && msg.event === PROJECT_EVENT) {
+		console.debug(`WebSocket: project ${msg.project_id} subscription refused: ${msg.error}`)
+		return
+	}
+
 	// Handle regular events — route by event name
 	if (msg.event) {
 		const callbacks = subscriptions.get(msg.event)
@@ -151,6 +200,9 @@ function handleMessage(event: MessageEvent) {
 			for (const cb of callbacks) {
 				cb(msg)
 			}
+		}
+		if (msg.event.startsWith('task.')) {
+			routeProjectEvent(msg)
 		}
 	}
 }
@@ -290,6 +342,7 @@ function disconnect() {
 	closeSocket()
 	setFirstConnectionSettled(false)
 	subscriptions.clear()
+	projectSubscriptions.clear()
 }
 
 function subscribe(event: string, callback: MessageCallback): () => void {
@@ -316,12 +369,37 @@ function subscribe(event: string, callback: MessageCallback): () => void {
 	}
 }
 
+// Receives the task.* frames of one project. The server checks read access on subscribe and again on
+// delivery; the first subscriber sends the frame, the last one leaving sends the unsubscribe.
+function subscribeProject(projectId: number, callback: MessageCallback): () => void {
+	let callbacks = projectSubscriptions.get(projectId)
+	if (!callbacks) {
+		callbacks = new Set()
+		projectSubscriptions.set(projectId, callbacks)
+		if (authenticated.value) {
+			sendMessage(projectSubscribeFrame('subscribe', projectId))
+		}
+	}
+	callbacks.add(callback)
+
+	return () => {
+		const current = projectSubscriptions.get(projectId)
+		if (!current) return
+		current.delete(callback)
+		if (current.size === 0) {
+			projectSubscriptions.delete(projectId)
+			sendMessage(projectSubscribeFrame('unsubscribe', projectId))
+		}
+	}
+}
+
 export function useWebSocket() {
 	return {
 		connect,
 		disconnect,
 		closeStaleConnection,
 		subscribe,
+		subscribeProject,
 		status: readonly(status),
 		authenticated,
 		isAwaitingFirstConnection,

@@ -378,6 +378,7 @@ import {isSavedFilterProject} from '@/client/queries/projects'
 import {useProjects} from '@/composables/useProjects'
 import {useCurrentProject} from '@/composables/useCurrentProject'
 import {PERMISSIONS as Permissions} from '@/constants/permissions'
+import {useProjectLiveUpdates} from '@/composables/useProjectLiveUpdates'
 
 const props = defineProps<{
 	isLoadingProject: boolean,
@@ -386,6 +387,7 @@ const props = defineProps<{
 }>()
 
 const projectList = useProjects()
+useProjectLiveUpdates(() => props.projectId)
 const {currentProject: project} = useCurrentProject()
 
 const canWrite = computed(() => typeof project.value?.max_permission === 'number' &&

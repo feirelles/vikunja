@@ -8,7 +8,7 @@ import {
 	type TaskFilterParams,
 	type TaskResponse,
 } from './tasks'
-import {kanbanKeys, type BoardData} from './kanban'
+import {bucketHasMore, kanbanKeys, type BoardData, type BucketResponse} from './kanban'
 import {totalPagesFor} from './pagination'
 import {getCachedProject} from './projects'
 
@@ -187,6 +187,75 @@ export function insertTaskIntoBoards(client: QueryClient, created: Task) {
 			buckets: deduped.buckets.map(bucket => bucket.id === target
 				? {...bucket, count: bucket.count + 1, tasks: [{...task, bucket_id: target, position}, ...bucket.tasks]}
 				: bucket),
+		})
+	}
+	for (const queryKey of unpatchable) {
+		void client.invalidateQueries({
+			queryKey,
+			exact: true,
+			refetchType: 'active',
+		})
+	}
+}
+
+// Where the server stores a task in one view: the kanban bucket and the sort position.
+export type TaskPlacement = {
+	project_view_id: number,
+	bucket_id?: number,
+	position?: number,
+}
+
+// Cards are listed by ascending position; one past the loaded page belongs to a page not loaded yet.
+function insertByPosition(bucket: BucketResponse, card: TaskResponse, mustInsert: boolean): TaskResponse[] | undefined {
+	const index = bucket.tasks.findIndex(item => item.position > card.position)
+	if (index === -1) {
+		if (!mustInsert && bucketHasMore(bucket)) return undefined
+		return [...bucket.tasks, card]
+	}
+	return [...bucket.tasks.slice(0, index), card, ...bucket.tasks.slice(index)]
+}
+
+// Puts a task changed elsewhere where the server keeps it on every cached board of its project:
+// the placement's bucket and position, or the view's rules for a view without a stored row. A card
+// already on the board is moved; one that is absent is inserted only where it would sit among the
+// loaded cards. countsAsNew adds an inserted card to the bucket count (created, restored, moved in).
+export function placeTaskInBoards(
+	client: QueryClient,
+	changed: Task,
+	placements: readonly TaskPlacement[],
+	countsAsNew: boolean,
+) {
+	const task = normalizeTask(changed)
+	const unpatchable: QueryKey[] = []
+	for (const [key, board] of client.getQueriesData<BoardData>({queryKey: kanbanKeys.all})) {
+		const project = kanbanKeys.projectOf(key)
+		const viewId = kanbanKeys.viewOf(key)
+		if (!board || project === undefined || project !== task.project_id || viewId === undefined) continue
+		const view = getCachedProject(project, client)?.views?.find(item => item.id === viewId)
+		if (!canPatchBoard(view, kanbanKeys.paramsOf(key))) {
+			unpatchable.push(key)
+			continue
+		}
+		const source = board.buckets.find(bucket => bucket.tasks.some(item => item.id === task.id))
+		const card = source?.tasks.find(item => item.id === task.id)
+		const placement = placements.find(item => item.project_view_id === viewId)
+		const stored = placement?.bucket_id && board.buckets.some(bucket => bucket.id === placement.bucket_id)
+			? placement.bucket_id
+			: undefined
+		const target = stored ?? targetBucketId(view, board, {...task, bucket_id: card?.bucket_id ?? task.bucket_id})
+		if (target === undefined) continue
+		const position = placement?.position || card?.position || positionAboveBoard(board, task)
+		const removed = removeFromBoard(board, task.id, dropMembership) ?? board
+		const bucket = removed.buckets.find(item => item.id === target)
+		if (!bucket) continue
+		const tasks = insertByPosition(bucket, {...(card ?? task), bucket_id: target, position}, card !== undefined)
+		const count = bucket.count + (card !== undefined || countsAsNew ? 1 : 0)
+		if (tasks === undefined && count === bucket.count) continue
+		client.setQueryData(key, {
+			...removed,
+			buckets: removed.buckets.map(item => item.id === target
+				? {...item, count, tasks: tasks ?? item.tasks}
+				: item),
 		})
 	}
 	for (const queryKey of unpatchable) {
