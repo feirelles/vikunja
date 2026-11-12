@@ -30,8 +30,7 @@ const (
 
 	// EventProject is the subscribe/unsubscribe scope for a project's task
 	// events. The frame carries the project id next to it; the pushed
-	// messages are named task.created, task.updated, task.deleted and
-	// task.restored.
+	// messages are named task.created, task.updated and task.deleted.
 	EventProject = "project"
 
 	// ReasonForbidden is the reason sent with an unsubscribed action when the

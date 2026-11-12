@@ -29,8 +29,8 @@ import (
 
 // ProjectTaskListener pushes a thin task event (ids and placements, see
 // ProjectTaskEvent) to the connections subscribed to the task's project.
-// wsEvent is the event name pushed: task.created, task.updated, task.deleted
-// or task.restored. A move also reaches the subscribers of the previous
+// wsEvent is the event name pushed: task.created, task.updated or
+// task.deleted. A move also reaches the subscribers of the previous
 // project, so they can drop the task.
 type ProjectTaskListener struct {
 	wsEvent string
@@ -116,5 +116,4 @@ func RegisterProjectListeners() {
 	events.RegisterListener((&models.TaskCreatedEvent{}).Name(), &ProjectTaskListener{wsEvent: "task.created"})
 	events.RegisterListener((&models.TaskUpdatedEvent{}).Name(), &ProjectTaskListener{wsEvent: "task.updated"})
 	events.RegisterListener((&models.TaskDeletedEvent{}).Name(), &ProjectTaskListener{wsEvent: "task.deleted"})
-	events.RegisterListener((&models.TaskRestoredEvent{}).Name(), &ProjectTaskListener{wsEvent: "task.restored"})
 }
