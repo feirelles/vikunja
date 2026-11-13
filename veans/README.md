@@ -79,7 +79,9 @@ veans create "title"           --description, --label, --status, --priority, --p
 veans update <id>              --status, --title, --priority, --label-add/remove,
                                --description, --description-replace-old/new, --description-append,
                                --comment, --reason, --if-unchanged-since
-veans claim <id>               assign the bot, move to In Progress, tag with current branch label
+veans claim <id>               assign the bot, move to In Progress, tag with current branch label;
+                               --branch <name> tags veans:branch:<name> instead and replaces any
+                               other veans:branch:* label on the task
 veans attach <id> <file>...    upload files as task attachments (multipart); refuses
                                missing/empty files and files over the server's max_file_size
 veans api METHOD PATH          raw REST passthrough — escape hatch for endpoints not wrapped here
