@@ -100,3 +100,15 @@ func TestPermissionsForBot_ProjectsBucketScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestPermissionsForBot_TaskAttachments(t *testing.T) {
+	server := map[string]RouteGroup{
+		"tasks_attachments": {"read_one": {}, "read_all": {}, "create": {}, "delete": {}},
+	}
+	got := PermissionsForBot(server)["tasks_attachments"]
+	for _, want := range []string{"read_one", "read_all", "create", "delete"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("tasks_attachments missing %q: %v", want, got)
+		}
+	}
+}

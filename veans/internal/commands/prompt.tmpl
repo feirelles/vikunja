@@ -189,6 +189,7 @@ veans update {{ .TaskIDExample }} --label-add bug --label-remove flaky
 veans update {{ .TaskIDExample }} -s scrapped --reason "obsolete: replaced by {{ .TaskIDExample }}"
 
 veans claim {{ .TaskIDExample }}                 # assign yourself + In Progress + branch label
+veans attach {{ .TaskIDExample }} dist/app.zip    # upload file(s) as task attachments (JSON: ids + names)
 veans api GET /tasks/...           # escape hatch for raw REST when curated cmds don't fit
 ```
 
@@ -198,7 +199,7 @@ veans api GET /tasks/...           # escape hatch for raw REST when curated cmds
 - Kanban view: `{{ .ViewID }}`
 - Buckets: Todo=`{{ .Buckets.Todo }}`, In Progress=`{{ .Buckets.InProgress }}`, In Review=`{{ .Buckets.InReview }}`, Done=`{{ .Buckets.Done }}`, Scrapped=`{{ .Buckets.Scrapped }}`
 - Label namespace: `veans:` (auto-prepended; e.g. `--label bug` becomes `veans:bug`)
-- Branch labels: `veans:branch:<branch-name>` — `veans claim` adds the current branch automatically
+- Branch labels: `veans:branch:<branch-name>` — `veans claim` adds the current branch automatically; `veans claim <id> --branch <name>` uses `<name>` and replaces other branch labels
 
 The agent prompt above overrides TodoWrite. Anything you would have tracked
 there should live in Vikunja instead, where it stays visible across sessions
