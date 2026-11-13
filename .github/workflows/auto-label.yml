@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   classify:
+    if: github.repository == 'go-vikunja/vikunja'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (for prompt template)
