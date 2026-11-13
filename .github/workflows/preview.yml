@@ -11,6 +11,7 @@ on:
 
 jobs:
   docker:
+    if: github.repository == 'go-vikunja/vikunja'
     runs-on: ubuntu-latest
     # Fork pull_request_target runs skip the usual outside-contributor approval prompt.
     # `preview-fork` carries required reviewers to put that gate back; `preview-trusted`
