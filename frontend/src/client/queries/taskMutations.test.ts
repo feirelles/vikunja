@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {QueryClient, QueryObserver} from '@tanstack/vue-query'
-import {taskKeys, tasksQuery} from './tasks'
+import {normalizeTask, taskKeys, tasksQuery} from './tasks'
 import {
 	bucketKeys,
 	kanbanKeys,
@@ -402,6 +402,26 @@ describe('task mutations', () => {
 		expect(sdk.projectTasksList).toHaveBeenCalledTimes(2)
 		expect(client.getQueryState(board.queryKey)?.isInvalidated).toBe(true)
 		expect(client.getQueryState(list.queryKey)?.isInvalidated).toBe(false)
+		unsubscribe()
+	})
+
+	it('does not show a created card twice when a live event placed it first', async () => {
+		const {client, board, unsubscribe} = await seedScrolledBoard()
+		const seeded = client.getQueryData<BoardData>(board.queryKey)!
+		client.setQueryData<BoardData>(board.queryKey, {
+			...seeded,
+			buckets: seeded.buckets.map((bucket, index) => index === 0
+				? {...bucket, count: bucket.count + 1, tasks: [...bucket.tasks, normalizeTask({id: 99, project_id: 1, bucket_id: 3})]}
+				: bucket),
+		})
+		sdk.tasksCreate.mockResolvedValue({data: {id: 99, title: 'new', project_id: 1, bucket_id: 3}})
+		await client.getMutationCache()
+			.build(client, createTaskMutationOptions())
+			.execute({title: 'new', project_id: 1, bucket_id: 3})
+		const data = client.getQueryData<BoardData>(board.queryKey)!
+		expect(data.buckets[0].tasks.filter(task => task.id === 99)).toHaveLength(1)
+		expect(data.buckets[0].tasks).toHaveLength(31)
+		expect(data.buckets[0].count).toBe(31)
 		unsubscribe()
 	})
 

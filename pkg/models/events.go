@@ -50,6 +50,8 @@ func (t *TasksBatchCreatedEvent) Name() string {
 type TaskUpdatedEvent struct {
 	Task *Task      `json:"task"`
 	Doer *user.User `json:"doer"`
+	// OldProjectID is the project the task belonged to before this update moved it. Zero when the task stayed.
+	OldProjectID int64 `json:"old_project_id,omitempty"`
 }
 
 // Name defines the name for TaskUpdatedEvent
