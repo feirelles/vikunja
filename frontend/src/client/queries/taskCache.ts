@@ -206,7 +206,7 @@ export type TaskPlacement = {
 }
 
 // Cards are listed by ascending position; one past the loaded page belongs to a page not loaded yet.
-function insertByPosition(bucket: BucketResponse, card: TaskResponse, mustInsert: boolean): TaskResponse[] | undefined {
+export function insertByPosition(bucket: BucketResponse, card: TaskResponse, mustInsert: boolean): TaskResponse[] | undefined {
 	const index = bucket.tasks.findIndex(item => item.position > card.position)
 	if (index === -1) {
 		if (!mustInsert && bucketHasMore(bucket)) return undefined

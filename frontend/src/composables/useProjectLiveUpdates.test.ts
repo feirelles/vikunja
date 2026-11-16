@@ -22,6 +22,11 @@ import {
 	normalizeTask,
 	taskKeys,
 } from '@/client/queries/tasks'
+import {
+	kanbanKeys,
+	normalizeBucket,
+	type BoardData,
+} from '@/client/queries/kanban'
 
 const ws = vi.hoisted(() => ({
 	handlers: new Map<number, (message: {event?: string, data: unknown}) => void>(),
@@ -116,4 +121,20 @@ it('ignores frames it cannot parse', async () => {
 	await flushPromises()
 
 	expect(client.getMutationCache().getAll()).toHaveLength(0)
+})
+
+it('applies a bucket frame of the project to its board', async () => {
+	const board = kanbanKeys.board(5, 2)
+	client.setQueryData(board, {buckets: [normalizeBucket({id: 3, title: 'old'})], pages: {3: 1}})
+	mountLiveUpdates()
+
+	ws.handlers.get(5)!({event: 'bucket.updated', data: {
+		project_id: 5,
+		project_view_id: 2,
+		bucket_id: 3,
+		bucket: {id: 3, project_view_id: 2, title: 'new', limit: 2, position: 1},
+	}})
+	await flushPromises()
+
+	expect(client.getQueryData<BoardData>(board)?.buckets[0]).toMatchObject({title: 'new', limit: 2})
 })
