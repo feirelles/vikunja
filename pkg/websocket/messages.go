@@ -28,10 +28,11 @@ const (
 	ActionAuthSuccess  = "auth.success"
 	ActionUnsubscribed = "unsubscribed"
 
-	// EventProject is the subscribe/unsubscribe scope for a project's task
-	// events. The frame carries the project id next to it; the pushed
-	// messages are named task.created, task.updated, task.deleted and
-	// task.restored.
+	// EventProject is the subscribe/unsubscribe scope for a project's events.
+	// The frame carries the project id next to it; the pushed messages are
+	// named task.created|updated|deleted|restored,
+	// task.comment.created|edited|deleted, bucket.created|updated|deleted and
+	// task.positions.recalculated.
 	EventProject = "project"
 
 	// ReasonForbidden is the reason sent with an unsubscribed action when the
@@ -84,4 +85,43 @@ type ProjectTaskEvent struct {
 	// Placements is the task's bucket and position in each view of its project
 	// that stores one. Empty on task.deleted.
 	Placements []*models.TaskPlacement `json:"placements,omitempty"`
+}
+
+// ProjectCommentEvent is the payload of the task.comment.* events pushed to
+// project subscribers. Like ProjectTaskEvent it carries ids only.
+type ProjectCommentEvent struct {
+	ProjectID int64 `json:"project_id"`
+	TaskID    int64 `json:"task_id"`
+	CommentID int64 `json:"comment_id"`
+	DoerID    int64 `json:"doer_id,omitempty"`
+}
+
+// ProjectBucket is the part of a kanban bucket pushed with bucket events.
+// Buckets carry no per-user fields and every reader of the project sees them,
+// so the event carries them instead of making each client reload the board.
+type ProjectBucket struct {
+	ID            int64   `json:"id"`
+	ProjectViewID int64   `json:"project_view_id"`
+	Title         string  `json:"title"`
+	Limit         int64   `json:"limit"`
+	Position      float64 `json:"position"`
+}
+
+// ProjectBucketEvent is the payload of the bucket.* events pushed to project subscribers.
+type ProjectBucketEvent struct {
+	ProjectID     int64 `json:"project_id"`
+	ProjectViewID int64 `json:"project_view_id"`
+	BucketID      int64 `json:"bucket_id"`
+	DoerID        int64 `json:"doer_id,omitempty"`
+	// Bucket is set on bucket.created and bucket.updated.
+	Bucket *ProjectBucket `json:"bucket,omitempty"`
+	// MovedToBucketID is set on bucket.deleted: the bucket that received its tasks.
+	MovedToBucketID int64 `json:"moved_to_bucket_id,omitempty"`
+}
+
+// ProjectViewEvent is the payload of task.positions.recalculated: every
+// position stored in the view changed, so clients reload what they show of it.
+type ProjectViewEvent struct {
+	ProjectID     int64 `json:"project_id"`
+	ProjectViewID int64 `json:"project_view_id"`
 }

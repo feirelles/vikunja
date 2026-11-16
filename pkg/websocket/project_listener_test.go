@@ -166,3 +166,167 @@ func TestCanReadProject(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, can, "a missing project reads as no access")
 }
+
+func TestProjectCommentListener(t *testing.T) {
+	t.Run("pushes the comment ids to the task project's subscribers", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+		other := subscribedProjectConn(2)
+
+		events.TestListener(t,
+			&models.TaskCommentCreatedEvent{
+				Task:    &models.Task{ID: 1, ProjectID: 1},
+				Comment: &models.TaskComment{ID: 5, Comment: "secret text"},
+				Doer:    &user.User{ID: 1},
+			},
+			&ProjectCommentListener{wsEvent: "task.comment.created"},
+		)
+
+		require.Len(t, conn.send, 1)
+		msg := <-conn.send
+		assert.Equal(t, "task.comment.created", msg.Event)
+		assert.Equal(t, &ProjectCommentEvent{ProjectID: 1, TaskID: 1, CommentID: 5, DoerID: 1}, msg.Data)
+		assert.Empty(t, other.send)
+	})
+
+	t.Run("ignores an event without a comment", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+
+		events.TestListener(t,
+			&models.TaskCommentDeletedEvent{Task: &models.Task{ID: 1, ProjectID: 1}},
+			&ProjectCommentListener{wsEvent: "task.comment.deleted"},
+		)
+
+		assert.Empty(t, conn.send)
+	})
+}
+
+func TestProjectBucketListener(t *testing.T) {
+	t.Run("an update carries the bucket", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+		other := subscribedProjectConn(2)
+
+		events.TestListener(t,
+			&models.BucketUpdatedEvent{
+				Bucket:    &models.Bucket{ID: 1, ProjectViewID: 4, Title: "Doing", Limit: 3, Position: 2},
+				ProjectID: 1,
+				Doer:      &user.User{ID: 1},
+			},
+			&ProjectBucketListener{wsEvent: "bucket.updated"},
+		)
+
+		require.Len(t, conn.send, 1)
+		msg := <-conn.send
+		assert.Equal(t, "bucket.updated", msg.Event)
+		assert.Equal(t, &ProjectBucketEvent{
+			ProjectID:     1,
+			ProjectViewID: 4,
+			BucketID:      1,
+			DoerID:        1,
+			Bucket:        &ProjectBucket{ID: 1, ProjectViewID: 4, Title: "Doing", Limit: 3, Position: 2},
+		}, msg.Data)
+		assert.Empty(t, other.send)
+	})
+
+	t.Run("a delete names where the tasks went", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+
+		events.TestListener(t,
+			&models.BucketDeletedEvent{
+				Bucket:          &models.Bucket{ID: 2, ProjectViewID: 4, Title: "gone"},
+				ProjectID:       1,
+				MovedToBucketID: 1,
+			},
+			&ProjectBucketListener{wsEvent: "bucket.deleted"},
+		)
+
+		require.Len(t, conn.send, 1)
+		assert.Equal(t, &ProjectBucketEvent{
+			ProjectID:       1,
+			ProjectViewID:   4,
+			BucketID:        2,
+			MovedToBucketID: 1,
+		}, (<-conn.send).Data)
+	})
+
+	t.Run("drops a subscriber who lost access", func(t *testing.T) {
+		s := setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(3)
+		unshareProject(t, s, 3, 1)
+		require.NoError(t, s.Commit())
+
+		events.TestListener(t,
+			&models.BucketCreatedEvent{Bucket: &models.Bucket{ID: 40, ProjectViewID: 12, Title: "x"}, ProjectID: 3},
+			&ProjectBucketListener{wsEvent: "bucket.created"},
+		)
+
+		require.Len(t, conn.send, 1)
+		assert.Equal(t, ActionUnsubscribed, (<-conn.send).Action)
+	})
+
+	t.Run("a saved filter view reaches nobody", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+
+		events.TestListener(t,
+			&models.BucketCreatedEvent{Bucket: &models.Bucket{ID: 40, ProjectViewID: 60}, ProjectID: -2},
+			&ProjectBucketListener{wsEvent: "bucket.created"},
+		)
+
+		assert.Empty(t, conn.send)
+	})
+}
+
+func TestPositionsRecalculatedListener(t *testing.T) {
+	t.Run("names the recalculated view", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+		other := subscribedProjectConn(2)
+
+		events.TestListener(t,
+			&models.TaskPositionsRecalculatedEvent{
+				NewTaskPositions: []*models.TaskPosition{{TaskID: 1, ProjectViewID: 4, Position: 1}},
+				ProjectID:        1,
+				ProjectViewID:    4,
+			},
+			&PositionsRecalculatedListener{},
+		)
+
+		require.Len(t, conn.send, 1)
+		msg := <-conn.send
+		assert.Equal(t, "task.positions.recalculated", msg.Event)
+		assert.Equal(t, &ProjectViewEvent{ProjectID: 1, ProjectViewID: 4}, msg.Data)
+		assert.Empty(t, other.send)
+	})
+
+	t.Run("a saved filter view reaches nobody", func(t *testing.T) {
+		setupDBTest(t)
+		InitHub()
+		projectAccess.reset()
+		conn := subscribedProjectConn(1)
+
+		events.TestListener(t,
+			&models.TaskPositionsRecalculatedEvent{ProjectID: -2, ProjectViewID: 60},
+			&PositionsRecalculatedListener{},
+		)
+
+		assert.Empty(t, conn.send)
+	})
+}
