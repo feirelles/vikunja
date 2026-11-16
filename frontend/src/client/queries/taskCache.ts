@@ -148,10 +148,11 @@ function positionAboveBoard(board: BoardData, task: TaskResponse): number {
 	return Number.isFinite(lowest) && lowest > 0 ? lowest / 2 : task.index * 2 ** 16
 }
 
-// Filter buckets are server-decided and a filtered or searched board may not match the task.
+// Filter buckets are server-decided and a board filtered by its view, its query or a search may not match the task.
 function canPatchBoard(view: ProjectView | undefined, params: TaskFilterParams | undefined): view is ProjectView {
 	return view !== undefined
 		&& view.bucket_configuration_mode !== 'filter'
+		&& !view.filter?.filter
 		&& !params?.filter
 		&& !params?.q
 }

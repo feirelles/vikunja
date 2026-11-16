@@ -91,4 +91,22 @@ func TestTaskUpdatedEvent_OldProjectID(t *testing.T) {
 		require.Len(t, dispatched, 1)
 		assert.Zero(t, dispatched[0].(*TaskUpdatedEvent).OldProjectID)
 	})
+
+	t.Run("is zero when a field update leaves out project_id", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+		events.ClearDispatchedEvents()
+
+		_, err := updateTasks(s, u, &Task{Title: "renamed", ProjectID: 2}, []int64{1}, []string{"title"})
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+		events.DispatchPending(context.Background(), s)
+
+		dispatched := events.GetDispatchedEvents((&TaskUpdatedEvent{}).Name())
+		require.Len(t, dispatched, 1)
+		event := dispatched[0].(*TaskUpdatedEvent)
+		assert.Zero(t, event.OldProjectID)
+		assert.Equal(t, int64(1), event.Task.ProjectID)
+	})
 }
