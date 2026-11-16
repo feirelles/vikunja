@@ -278,3 +278,40 @@ func TestGetLegalLinks(t *testing.T) {
 		}, GetLegalLinks())
 	})
 }
+
+// The e2e harness pins its config with --config. A config file in the caller's
+// ~/.config/vikunja (e.g. a production instance's, with cors.origins: [] and its own
+// secret and database) must not reach the pinned instance.
+func TestPinnedConfigFileIgnoresUserConfig(t *testing.T) {
+	home := t.TempDir()
+	userConfigDir := filepath.Join(home, ".config", "vikunja")
+	require.NoError(t, os.MkdirAll(userConfigDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(userConfigDir, "config.yml"), []byte(
+		"cors:\n  origins: []\nservice:\n  secret: user-secret\ndatabase:\n  path: /user/vikunja.db\n"), 0o600))
+	t.Setenv("HOME", home)
+
+	// The working directory is part of the search path too.
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(userConfigDir))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(cwd)) })
+
+	pinnedDir := t.TempDir()
+	pinned := filepath.Join(pinnedDir, "config.yml")
+	require.NoError(t, os.WriteFile(pinned, []byte(
+		"cors:\n  enable: true\n  origins:\n    - \"http://127.0.0.1:*\"\n    - \"http://localhost:*\"\n"+
+			"service:\n  publicurl: http://127.0.0.1:3460/\n"), 0o600))
+	SetConfigFile(pinned)
+	t.Cleanup(func() {
+		SetConfigFile("")
+		viper.Reset()
+	})
+
+	viper.Reset()
+	InitConfig()
+
+	assert.Equal(t, pinned, viper.ConfigFileUsed())
+	assert.Subset(t, CorsOrigins.GetStringSlice(), []string{"http://127.0.0.1:*", "http://localhost:*"})
+	assert.NotEqual(t, "user-secret", ServiceSecret.GetString())
+	assert.Equal(t, filepath.Join(pinnedDir, "vikunja.db"), DatabasePath.GetString())
+}

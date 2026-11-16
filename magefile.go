@@ -324,6 +324,61 @@ func killProcessGroup(cmd *exec.Cmd) error {
 	return cmd.Wait()
 }
 
+// ensurePortFree fails when something already listens on the port. Without this check a
+// harness whose server cannot bind would wait on, and test against, whatever already
+// serves that port (e.g. a production instance).
+func ensurePortFree(ctx context.Context, port int) error {
+	l, err := (&net.ListenConfig{}).Listen(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return fmt.Errorf("port %d is already in use: %w", port, err)
+	}
+	return l.Close()
+}
+
+// e2eAPIConfig is the only config file the e2e API reads. It is passed with --config,
+// which bypasses the search path (rootpath, /etc/vikunja, ~/.config/vikunja and the
+// working directory), so a config file of the user running mage never reaches the
+// test instance. Everything else comes from the environment.
+const e2eAPIConfig = `cors:
+  enable: true
+  origins:
+    - "http://127.0.0.1:*"
+    - "http://localhost:*"
+`
+
+// hermeticEnv returns the current environment without VIKUNJA_* variables, so
+// settings exported in the caller's shell do not leak into a test instance.
+func hermeticEnv() []string {
+	env := make([]string, 0, len(os.Environ()))
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "VIKUNJA_") {
+			env = append(env, kv)
+		}
+	}
+	return env
+}
+
+// checkE2ECors sends a CORS preflight from the frontend origin to the API and fails
+// unless the API allows it. A config that clears cors.origins makes every spec fail
+// with "Failed to fetch"; this turns that into one clear error before Playwright runs.
+func checkE2ECors(ctx context.Context, apiBase, origin string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodOptions, apiBase+"/info", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin && got != "*" {
+		return fmt.Errorf("API does not allow CORS from %s (Access-Control-Allow-Origin: %q)", origin, got)
+	}
+	return nil
+}
+
 // waitForHTTP polls a URL until it returns a 200 status or the timeout expires.
 func waitForHTTP(ctx context.Context, url string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -494,6 +549,11 @@ func (Test) E2EApi(ctx context.Context) error {
 //   - VIKUNJA_E2E_FRONTEND_PORT: Frontend port (default: random)
 //   - VIKUNJA_E2E_TESTING_TOKEN: Testing token for seed endpoints (default: random)
 //   - VIKUNJA_E2E_SKIP_BUILD: Set to "true" to skip rebuilding the API binary (default: false)
+//   - PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: browser binary (default: `which chromium`, then Playwright's own)
+//
+// The API reads only a config file generated in a temp dir (passed with --config) and
+// the env vars set here; config files in ~/.config/vikunja, /etc/vikunja or the working
+// directory and VIKUNJA_* vars from the caller's environment are ignored.
 func (Test) E2E(ctx context.Context, args string) error {
 	mg.Deps(initVars)
 
@@ -540,11 +600,23 @@ func (Test) E2E(ctx context.Context, args string) error {
 		return fmt.Errorf("failed to create files dir: %w", err)
 	}
 
-	// Start the API server — all config via env vars, no config file
-	// Uses in-memory SQLite (no DB file on disk)
+	configPath := filepath.Join(tmpDir, "config.yml")
+	if err := os.WriteFile(configPath, []byte(e2eAPIConfig), 0o600); err != nil {
+		return fmt.Errorf("failed to write API config: %w", err)
+	}
+
+	for _, port := range []int{apiPort, frontendPort} {
+		if err := ensurePortFree(ctx, port); err != nil {
+			return err
+		}
+	}
+
+	// Start the API server from the pinned config file plus env vars; VIKUNJA_* vars
+	// from the caller's environment are dropped. Uses in-memory SQLite (no DB file on disk).
 	fmt.Println("\n--- Starting API server ---")
-	apiCmd := exec.CommandContext(ctx, "./vikunja", "web")
-	apiCmd.Env = append(os.Environ(),
+	fmt.Printf("API config file: %s (search path and caller's VIKUNJA_* env ignored)\n", configPath)
+	apiCmd := exec.CommandContext(ctx, "./vikunja", "--config", configPath, "web")
+	apiCmd.Env = append(hermeticEnv(),
 		fmt.Sprintf("VIKUNJA_SERVICE_INTERFACE=:%d", apiPort),
 		fmt.Sprintf("VIKUNJA_SERVICE_PUBLICURL=http://127.0.0.1:%d/", apiPort),
 		fmt.Sprintf("VIKUNJA_SERVICE_TESTINGTOKEN=%s", testingToken),
@@ -614,6 +686,11 @@ func (Test) E2E(ctx context.Context, args string) error {
 		return fmt.Errorf("frontend failed to start: %w", err)
 	}
 	printSuccess("Frontend is ready!")
+
+	if err := checkE2ECors(ctx, apiBase, frontendBase); err != nil {
+		return err
+	}
+	printSuccess("API allows CORS from %s", frontendBase)
 
 	// Run Playwright tests
 	fmt.Println("\n--- Running Playwright e2e tests ---")
