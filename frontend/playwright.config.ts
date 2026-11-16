@@ -1,9 +1,10 @@
 import {defineConfig, devices} from '@playwright/test'
 import {execSync} from 'child_process'
 
-// Find system chromium - for UI mode, set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var
+// Browser binary: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH when set (any Chromium-based
+// binary, e.g. /usr/bin/google-chrome), else `which chromium`, else Playwright's own
+// downloaded browser.
 const getChromiumPath = () => {
-	// Check if env var is already set (for UI mode)
 	if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
 		return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 	}
