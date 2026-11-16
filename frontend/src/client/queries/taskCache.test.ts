@@ -336,6 +336,26 @@ describe('placeTaskInBoards', () => {
 		expect(shape(client, board)?.[0]).toEqual({count: 2, tasks: [[8, 25], [1, 100]]})
 	})
 
+	it('invalidates instead of patching a board whose view has its own filter', async () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 9, position: 100}])
+		client.setQueryData(projectKeys.detail(1), {
+			id: 1,
+			views: [{
+				id: 2,
+				bucket_configuration_mode: 'manual',
+				default_bucket_id: 3,
+				filter: {filter: 'done = false'},
+			}],
+		})
+		const before = client.getQueryState(board)?.dataUpdateCount
+		placeTaskInBoards(client, {id: 9, project_id: 1, done: true}, [], false)
+		insertTaskIntoBoards(client, {id: 8, project_id: 1})
+		await Promise.resolve()
+		expect(client.getQueryState(board)?.dataUpdateCount).toBe(before)
+		expect(client.getQueryState(board)?.isInvalidated).toBe(true)
+	})
+
 	it('ignores boards of other projects', () => {
 		const client = new QueryClient()
 		const board = boardWith(client, [{id: 1, position: 100}])
