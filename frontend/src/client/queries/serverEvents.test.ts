@@ -8,6 +8,7 @@ import {
 	QueryObserver,
 } from '@tanstack/vue-query'
 import {
+	parseProjectEvent,
 	parseProjectTaskEvent,
 	parseServerCacheEvent,
 	serverCacheEventMutationOptions,
@@ -29,7 +30,7 @@ import {
 	normalizeTask,
 	type TaskResponse,
 } from './tasks'
-import {kanbanKeys} from './kanban'
+import {bucketKeys, kanbanKeys} from './kanban'
 vi.mock('@/message', () => ({
 	error: vi.fn(),
 	success: vi.fn(),
@@ -552,4 +553,170 @@ it('refetches open boards and lists on a reconnect', async () => {
 
 	await vi.waitFor(() => expect(boardFn).toHaveBeenCalledTimes(2))
 	unsubscribe()
+})
+
+const execute = (client: QueryClient, event: Parameters<ReturnType<typeof serverCacheEventMutationOptions>['mutationFn'] & {}>[0]) =>
+	client.getMutationCache().build(client, serverCacheEventMutationOptions()).execute(event)
+
+it('parses comment, bucket and recalculation frames and rejects malformed ones', () => {
+	expect(parseProjectEvent('task.comment.created', {project_id: 1, task_id: 9, comment_id: 5, doer_id: 7})).toEqual({
+		kind: 'task.comment.created',
+		projectId: 1,
+		taskId: 9,
+		commentId: 5,
+	})
+	expect(parseProjectEvent('task.comment.edited', {project_id: 1, task_id: 9})).toBeNull()
+	expect(parseProjectEvent('bucket.updated', {
+		project_id: 1,
+		project_view_id: 2,
+		bucket_id: 4,
+		bucket: {id: 4, project_view_id: 2, title: 'Doing', limit: 3, position: 20},
+	})).toEqual({
+		kind: 'bucket.updated',
+		projectId: 1,
+		viewId: 2,
+		bucket: {id: 4, project_view_id: 2, title: 'Doing', limit: 3, position: 20},
+	})
+	expect(parseProjectEvent('bucket.created', {project_id: 1, project_view_id: 2, bucket_id: 4, bucket: {id: 5, title: 'x', limit: 0, position: 1}})).toBeNull()
+	expect(parseProjectEvent('bucket.created', {project_id: 1, project_view_id: 2, bucket_id: 4})).toBeNull()
+	expect(parseProjectEvent('bucket.deleted', {project_id: 1, project_view_id: 2, bucket_id: 4, moved_to_bucket_id: 3})).toEqual({
+		kind: 'bucket.deleted',
+		projectId: 1,
+		viewId: 2,
+		bucketId: 4,
+		movedToBucketId: 3,
+	})
+	expect(parseProjectEvent('task.positions.recalculated', {project_id: 1, project_view_id: 2})).toEqual({
+		kind: 'task.positions.recalculated',
+		projectId: 1,
+		viewId: 2,
+	})
+	expect(parseProjectEvent('task.positions.recalculated', {project_id: -2, project_view_id: 2})).toBeNull()
+	expect(parseProjectEvent('task.deleted', {project_id: 1, task_id: 9})?.kind).toBe('task.deleted')
+	expect(parseProjectEvent('timer.created', {project_id: 1, task_id: 9})).toBeNull()
+	expect(parseProjectEvent('bucket.updated', 'junk')).toBeNull()
+})
+
+it('refetches the comments of a task and patches its card counters', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	const comments = commentKeys.page(9, 'asc', 1)
+	client.setQueryData(comments, {items: [], page: 1, per_page: 50, total: 0, total_pages: 1})
+	sdk.tasksRead.mockReset()
+	sdk.tasksRead.mockResolvedValue({data: {id: 9, project_id: 1, title: 'ignored', comment_count: 2, is_unread: true}})
+
+	await execute(client, {kind: 'task.comment.created', projectId: 1, taskId: 9, commentId: 5})
+
+	const card = client.getQueryData<BoardData>(board)?.buckets[0].tasks[0]
+	expect(card?.comment_count).toBe(2)
+	expect(card?.is_unread).toBe(true)
+	expect(card?.title).toBe('old')
+	expect(client.getQueryState(comments)?.isInvalidated).toBe(true)
+})
+
+it('does not load a commented task that no cached view shows', async () => {
+	const client = new QueryClient()
+	sdk.tasksRead.mockReset()
+
+	await execute(client, {kind: 'task.comment.deleted', projectId: 1, taskId: 9, commentId: 5})
+
+	expect(sdk.tasksRead).not.toHaveBeenCalled()
+})
+
+const bucketShape = (client: QueryClient, key: ReturnType<typeof kanbanKeys.board>) => {
+	const board = client.getQueryData<BoardData>(key)
+	return {
+		buckets: board?.buckets.map(bucket => [bucket.id, bucket.title, bucket.limit, bucket.count, bucket.tasks.map(task => task.id)]),
+		pages: board?.pages,
+	}
+}
+
+it('adds a created bucket once, also on a filtered board', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [])
+	const filtered = kanbanKeys.board(1, 2, {filter: 'done = false'})
+	client.setQueryData(filtered, client.getQueryData(board))
+	const other = projectBoard(client, 1, 7, [])
+	const event = {kind: 'bucket.created', projectId: 1, viewId: 2, bucket: {id: 8, project_view_id: 2, title: 'New', limit: 0, position: 0}} as const
+
+	await execute(client, event)
+	await execute(client, event)
+
+	const expected = {
+		buckets: [[3, '', 0, 0, []], [4, '', 0, 0, []], [8, 'New', 0, 0, []]],
+		pages: {3: 1, 4: 1, 8: 1},
+	}
+	expect(bucketShape(client, board)).toEqual(expected)
+	expect(bucketShape(client, filtered)).toEqual(expected)
+	expect(bucketShape(client, other).buckets).toHaveLength(2)
+})
+
+it('merges an updated bucket and keeps its cards', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	const buckets = bucketKeys.list(1, 2)
+	client.setQueryData(buckets, [])
+
+	await execute(client, {kind: 'bucket.updated', projectId: 1, viewId: 2, bucket: {id: 3, project_view_id: 2, title: 'Doing', limit: 5, position: 10}})
+
+	expect(bucketShape(client, board).buckets).toEqual([[4, '', 0, 0, []], [3, 'Doing', 5, 1, [9]]])
+	expect(client.getQueryState(buckets)?.isInvalidated).toBe(true)
+})
+
+it('hands the cards of a deleted bucket to the one that received them', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}, {id: 1, position: 300}])
+	client.setQueryData<BoardData>(board, current => current && {
+		...current,
+		buckets: [current.buckets[0], normalizeBucket({id: 4, count: 1, tasks: [{id: 2, project_id: 1, bucket_id: 4, position: 200}]})],
+	})
+
+	await execute(client, {kind: 'bucket.deleted', projectId: 1, viewId: 2, bucketId: 3, movedToBucketId: 4})
+
+	expect(bucketShape(client, board)).toEqual({
+		buckets: [[4, '', 0, 3, [9, 2, 1]]],
+		pages: {4: 1},
+	})
+	expect(client.getQueryData<BoardData>(board)?.buckets[0].tasks.every(task => task.bucket_id === 4)).toBe(true)
+	expect(client.getQueryState(board)?.isInvalidated).toBe(false)
+})
+
+it('refetches a board when the bucket that received the cards is unknown', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+
+	await execute(client, {kind: 'bucket.deleted', projectId: 1, viewId: 2, bucketId: 3, movedToBucketId: 99})
+
+	expect(bucketShape(client, board).buckets).toEqual([[4, '', 0, 0, []]])
+	expect(client.getQueryState(board)?.isInvalidated).toBe(true)
+})
+
+it('reloads the project when the deleted bucket was the view default', async () => {
+	const client = new QueryClient()
+	projectBoard(client, 1, 2, [])
+
+	await execute(client, {kind: 'bucket.deleted', projectId: 1, viewId: 2, bucketId: 3, movedToBucketId: 4})
+
+	expect(client.getQueryState(projectKeys.detail(1))?.isInvalidated).toBe(true)
+})
+
+it('ignores a deleted bucket no cached board holds', async () => {
+	const client = new QueryClient()
+	const board = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	const before = client.getQueryData(board)
+
+	await execute(client, {kind: 'bucket.deleted', projectId: 1, viewId: 2, bucketId: 42, movedToBucketId: 3})
+
+	expect(client.getQueryData(board)).toBe(before)
+})
+
+it('refetches the boards of a recalculated view only', async () => {
+	const client = new QueryClient()
+	const recalculated = projectBoard(client, 1, 2, [{id: 9, position: 100}])
+	const other = projectBoard(client, 1, 7, [{id: 9, position: 100}])
+
+	await execute(client, {kind: 'task.positions.recalculated', projectId: 1, viewId: 2})
+
+	expect(client.getQueryState(recalculated)?.isInvalidated).toBe(true)
+	expect(client.getQueryState(other)?.isInvalidated).toBe(false)
 })

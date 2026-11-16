@@ -21,7 +21,8 @@ interface WebSocketEvent {
 	data?: unknown
 }
 
-// The subscribe scope for a project's task events; the pushed frames are named task.*.
+// The subscribe scope for a project's events; the pushed frames are named task.*, task.comment.*,
+// bucket.* and task.positions.recalculated.
 const PROJECT_EVENT = 'project'
 
 const RECONNECT_BASE_DELAY = 1000
@@ -116,7 +117,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null
 }
 
-// Task frames carry the project in their payload; a move names the previous project too, so both
+// Project frames carry the project in their payload; a move names the previous project too, so both
 // sets of subscribers hear it, each callback once.
 function routeProjectEvent(msg: WebSocketEvent) {
 	if (!isRecord(msg.data)) {

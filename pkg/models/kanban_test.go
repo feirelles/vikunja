@@ -17,11 +17,13 @@
 package models
 
 import (
+	"context"
 	"testing"
 
 	"xorm.io/xorm"
 
 	"code.vikunja.io/api/pkg/db"
+	"code.vikunja.io/api/pkg/events"
 	"code.vikunja.io/api/pkg/user"
 
 	"github.com/stretchr/testify/assert"
@@ -505,5 +507,86 @@ func TestBucket_CanDelete(t *testing.T) {
 		can, err := b.CanDelete(s, &user.User{ID: 15})
 		require.NoError(t, err)
 		assert.False(t, can)
+	})
+}
+
+func TestBucket_Events(t *testing.T) {
+	u := &user.User{ID: 1}
+
+	dispatchedAfterCommit := func(t *testing.T, s *xorm.Session, name string) []events.Event {
+		t.Helper()
+		require.NoError(t, s.Commit())
+		events.DispatchPending(context.Background(), s)
+		return events.GetDispatchedEvents(name)
+	}
+
+	t.Run("create dispatches the stored bucket and its project", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		events.ClearDispatchedEvents()
+		s := db.NewSession()
+		defer s.Close()
+
+		b := &Bucket{Title: "live", ProjectViewID: 4}
+		require.NoError(t, b.Create(s, u))
+
+		dispatched := dispatchedAfterCommit(t, s, (&BucketCreatedEvent{}).Name())
+		require.Len(t, dispatched, 1)
+		event := dispatched[0].(*BucketCreatedEvent)
+		assert.Equal(t, int64(1), event.ProjectID)
+		assert.Equal(t, b.ID, event.Bucket.ID)
+		assert.Equal(t, "live", event.Bucket.Title)
+		assert.NotZero(t, event.Bucket.Position)
+		assert.Equal(t, int64(1), event.Doer.ID)
+	})
+
+	t.Run("update dispatches the stored row, not the request body", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		events.ClearDispatchedEvents()
+		s := db.NewSession()
+		defer s.Close()
+
+		// No ProjectViewID: routes bind it from the URL, the event must not depend on it.
+		b := &Bucket{ID: 1, Title: "renamed", Limit: 3, Position: 7}
+		require.NoError(t, b.Update(s, u))
+
+		dispatched := dispatchedAfterCommit(t, s, (&BucketUpdatedEvent{}).Name())
+		require.Len(t, dispatched, 1)
+		event := dispatched[0].(*BucketUpdatedEvent)
+		assert.Equal(t, int64(1), event.ProjectID)
+		assert.Equal(t, int64(4), event.Bucket.ProjectViewID)
+		assert.Equal(t, "renamed", event.Bucket.Title)
+		assert.Equal(t, int64(3), event.Bucket.Limit)
+		assert.InDelta(t, 7.0, event.Bucket.Position, 0)
+		assert.Equal(t, int64(1), event.Doer.ID)
+	})
+
+	t.Run("delete names the bucket that received the tasks", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		events.ClearDispatchedEvents()
+		s := db.NewSession()
+		defer s.Close()
+
+		b := &Bucket{ID: 2, ProjectID: 1, ProjectViewID: 4}
+		require.NoError(t, b.Delete(s, u))
+
+		dispatched := dispatchedAfterCommit(t, s, (&BucketDeletedEvent{}).Name())
+		require.Len(t, dispatched, 1)
+		event := dispatched[0].(*BucketDeletedEvent)
+		assert.Equal(t, int64(1), event.ProjectID)
+		assert.Equal(t, int64(2), event.Bucket.ID)
+		assert.Equal(t, int64(4), event.Bucket.ProjectViewID)
+		assert.Equal(t, int64(1), event.MovedToBucketID)
+	})
+
+	t.Run("a refused delete dispatches nothing", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		events.ClearDispatchedEvents()
+		s := db.NewSession()
+		defer s.Close()
+
+		b := &Bucket{ID: 34, ProjectID: 18, ProjectViewID: 72}
+		require.Error(t, b.Delete(s, u))
+
+		assert.Empty(t, dispatchedAfterCommit(t, s, (&BucketDeletedEvent{}).Name()))
 	})
 }

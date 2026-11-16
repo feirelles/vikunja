@@ -203,11 +203,53 @@ func (t *TaskRelationDeletedEvent) Name() string {
 // TaskPositionsRecalculatedEvent represents a TaskPositionsRecalculatedEvent event
 type TaskPositionsRecalculatedEvent struct {
 	NewTaskPositions []*TaskPosition
+	// ProjectID is the project of the recalculated view; negative for a saved filter view.
+	ProjectID     int64 `json:"project_id"`
+	ProjectViewID int64 `json:"project_view_id"`
 }
 
 // Name defines the name for TaskPositionsRecalculatedEvent
 func (t *TaskPositionsRecalculatedEvent) Name() string {
 	return "task.positions.recalculated"
+}
+
+// BucketCreatedEvent represents an event where a kanban bucket has been created
+type BucketCreatedEvent struct {
+	Bucket *Bucket `json:"bucket"`
+	// ProjectID is the project of the bucket's view; Bucket.ProjectID is not serialized.
+	ProjectID int64      `json:"project_id"`
+	Doer      *user.User `json:"doer"`
+}
+
+// Name defines the name for BucketCreatedEvent
+func (b *BucketCreatedEvent) Name() string {
+	return "bucket.created"
+}
+
+// BucketUpdatedEvent represents an event where a kanban bucket has been updated
+type BucketUpdatedEvent struct {
+	Bucket    *Bucket    `json:"bucket"`
+	ProjectID int64      `json:"project_id"`
+	Doer      *user.User `json:"doer"`
+}
+
+// Name defines the name for BucketUpdatedEvent
+func (b *BucketUpdatedEvent) Name() string {
+	return "bucket.updated"
+}
+
+// BucketDeletedEvent represents an event where a kanban bucket has been deleted
+type BucketDeletedEvent struct {
+	Bucket    *Bucket `json:"bucket"`
+	ProjectID int64   `json:"project_id"`
+	// MovedToBucketID is the bucket that received the deleted bucket's tasks.
+	MovedToBucketID int64      `json:"moved_to_bucket_id"`
+	Doer            *user.User `json:"doer"`
+}
+
+// Name defines the name for BucketDeletedEvent
+func (b *BucketDeletedEvent) Name() string {
+	return "bucket.deleted"
 }
 
 // TaskReminderFiredEvent represents an event where a task reminder has fired

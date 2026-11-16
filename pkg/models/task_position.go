@@ -487,6 +487,8 @@ func RecalculateTaskPositions(s *xorm.Session, view *ProjectView, a web.Auth) (e
 
 	events.DispatchOnCommit(s, &TaskPositionsRecalculatedEvent{
 		NewTaskPositions: newPositions,
+		ProjectID:        view.ProjectID,
+		ProjectViewID:    view.ID,
 	})
 	return nil
 }
@@ -585,6 +587,8 @@ func recalculateTaskPositionsForRepair(s *xorm.Session, view *ProjectView) error
 
 	events.DispatchOnCommit(s, &TaskPositionsRecalculatedEvent{
 		NewTaskPositions: newPositions,
+		ProjectID:        view.ProjectID,
+		ProjectViewID:    view.ID,
 	})
 	return nil
 }
