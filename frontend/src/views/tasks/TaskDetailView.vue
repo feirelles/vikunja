@@ -34,59 +34,64 @@
 			v-else-if="visible"
 			class="task-view"
 		>
-			<BaseButton
-				v-if="!isModal"
-				class="back-button mbs-2"
-				@click="goBack()"
+			<div
+				class="task-columns"
+				:class="{'mbs-2': !isModal}"
 			>
-				<Icon icon="arrow-left" />
-				{{ $t('task.detail.back') }}
-			</BaseButton>
-			<Heading
-				ref="heading"
-				:task="task"
-				:can-write="canWrite"
-				:has-close="isModal"
-				@close="$emit('close')"
-			/>
-			<nav
-				v-if="project?.id"
-				aria-label="Breadcrumb"
-				class="subtitle"
-			>
-				<template
-					v-for="p in projectList.getAncestors(project)"
-					:key="p.id"
+				<BaseButton
+					v-if="!isModal"
+					class="back-button"
+					@click="goBack()"
 				>
-					<a
-						v-if="typeof router.options.history.state.back === 'string' && router.options.history.state.back.includes('/projects/'+p.id+'/')"
-						v-shortcut="p.id === project?.id ? SHORTCUTS.taskDetail.openProject : ''"
-						@click="router.back()"
+					<Icon icon="arrow-left" />
+					{{ $t('task.detail.back') }}
+				</BaseButton>
+				<header class="task-header">
+					<Heading
+						ref="heading"
+						:task="task"
+						:can-write="canWrite"
+						:has-close="isModal"
+						@close="$emit('close')"
+					/>
+					<nav
+						v-if="project?.id"
+						aria-label="Breadcrumb"
+						class="subtitle"
 					>
-						{{ getProjectTitle(p) }}
-					</a>
-					<RouterLink
-						v-else
-						v-shortcut="p.id === project?.id ? SHORTCUTS.taskDetail.openProject : ''"
-						:to="{ name: 'project.index', params: { projectId: p.id } }"
-					>
-						{{ getProjectTitle(p) }}
-					</RouterLink>
-					<span
-						v-if="p.id !== project?.id"
-						class="has-text-grey-light"
-					> &gt; </span>
-				</template>
-				<BucketSelect
-					:task="task"
-					:can-write="canWrite"
-				/>
-			</nav>
+						<template
+							v-for="p in projectList.getAncestors(project)"
+							:key="p.id"
+						>
+							<a
+								v-if="typeof router.options.history.state.back === 'string' && router.options.history.state.back.includes('/projects/'+p.id+'/')"
+								v-shortcut="p.id === project?.id ? SHORTCUTS.taskDetail.openProject : ''"
+								@click="router.back()"
+							>
+								{{ getProjectTitle(p) }}
+							</a>
+							<RouterLink
+								v-else
+								v-shortcut="p.id === project?.id ? SHORTCUTS.taskDetail.openProject : ''"
+								:to="{ name: 'project.index', params: { projectId: p.id } }"
+							>
+								{{ getProjectTitle(p) }}
+							</RouterLink>
+							<span
+								v-if="p.id !== project?.id"
+								class="has-text-grey-light"
+							> &gt; </span>
+						</template>
+						<BucketSelect
+							:task="task"
+							:can-write="canWrite"
+						/>
+					</nav>
 
-			<ChecklistSummary :task="task" />
+					<ChecklistSummary :task="task" />
+				</header>
 
-			<div class="columns task-columns mbs-2">
-				<div class="column is-two-thirds detail-content">
+				<div class="detail-content">
 					<!-- Description -->
 					<div class="details content description">
 						<Description
@@ -182,7 +187,11 @@
 					/>
 				</div>
 
-				<aside class="column is-one-third action-buttons task-sidebar">
+				<aside
+					ref="sidebar"
+					class="action-buttons task-sidebar"
+					:style="{'--sidebar-height': `${sidebarHeight}px`}"
+				>
 					<div
 						v-if="canWrite"
 						class="sidebar-toolbar d-print-none"
@@ -839,6 +848,9 @@ useMutationObserver(
 onBeforeUnmount(() => debouncedMutationHandler.cancel())
 
 const {height: scrollContainerHeight} = useElementSize(scrollContainer)
+
+const sidebar = ref<HTMLElement | null>(null)
+const {height: sidebarHeight} = useElementSize(sidebar, undefined, {box: 'border-box'})
 watch(scrollContainerHeight, () => updateScrollable())
 
 onMounted(async () => {
@@ -1329,14 +1341,14 @@ h2 .button {
 
 .attachments {
 	margin-block-end: 0;
-
-	table tr:last-child td {
-		border-inline-end: none;
-	}
 }
 
-// keep the title clear of the modal's fixed close button
-.is-modal .heading {
+.is-modal .task-sidebar {
+	--sidebar-top: 1rem;
+}
+
+// keep the toolbar clear of the modal's fixed close button
+.is-modal .sidebar-toolbar {
 	@media screen and (min-width: $tablet) and (max-width: $desktop) {
 		padding-inline-end: 3.5rem;
 	}
@@ -1346,31 +1358,54 @@ h2 .button {
 	padding-inline-start: .25rem;
 }
 
-.detail-content {
-	@media print {
-		inline-size: 100% !important;
-	}
-}
-
-// Bulma stacks columns as blocks on narrow screens, so flex is needed for `order`.
 .task-columns {
-	@media screen and (max-width: $tablet), print {
-		display: flex;
-		flex-direction: column;
+	display: grid;
+	grid-template-areas: "back" "header" "sidebar" "content";
+
+	@media screen and (min-width: $tablet) {
+		// Same widths as Bulma's is-two-thirds / is-one-third columns.
+		grid-template-columns: calc(200% / 3 - .5rem) minmax(0, 1fr);
+		grid-template-rows: auto auto 1fr;
+		grid-template-areas: "back ." "header sidebar" "content sidebar";
+		column-gap: 1.5rem;
 	}
 }
 
-// Not sticky: the list can outgrow the viewport and its popups open downwards.
+.back-button {
+	grid-area: back;
+	justify-self: start;
+}
+
+.task-header {
+	grid-area: header;
+	min-inline-size: 0;
+}
+
+.detail-content {
+	grid-area: content;
+	min-inline-size: 0;
+
+	padding-block-start: .75rem;
+}
+
 .task-sidebar {
+	grid-area: sidebar;
 	container: task-sidebar / inline-size;
 
+	--sidebar-top: #{$navbar-height + 1.5rem};
+
+	// A sidebar taller than the viewport gets a negative offset, so it sticks once its bottom is in view.
+	@media screen and (min-width: $tablet) {
+		position: sticky;
+		inset-block-start: min(var(--sidebar-top), calc(100dvh - var(--sidebar-height, 0px) - 1rem));
+		align-self: flex-start;
+	}
+
 	@media screen and (max-width: $tablet), print {
-		order: -1;
+		padding-block: .75rem;
 	}
 
 	@media print {
-		inline-size: 100% !important;
-
 		.property:not(.is-set),
 		.chevron,
 		:deep(.multiselect input),
@@ -1389,6 +1424,12 @@ h2 .button {
 	align-items: stretch;
 	gap: .375rem;
 	margin-block-end: .75rem;
+
+	// centers the buttons on the title's first line
+	@media screen and (min-width: $tablet) {
+		min-block-size: $task-title-height;
+		align-content: center;
+	}
 
 	.button--mark-done {
 		flex: 1 1 10rem;

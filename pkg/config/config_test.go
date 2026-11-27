@@ -26,11 +26,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// isolateConfigSearchPaths keeps InitConfig away from the host's config files
+// (/etc/vikunja and ~/.config/vikunja), which the search path reads before ".".
+func isolateConfigSearchPaths(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("HOME", t.TempDir())
+	previous := systemConfigDir
+	systemConfigDir = t.TempDir()
+	t.Cleanup(func() { systemConfigDir = previous })
+}
+
 // initConfigFromYAML runs InitConfig against a config file in a temporary directory.
 // cors.enable is turned off because InitConfig aborts when it is on without a publicurl.
 func initConfigFromYAML(t *testing.T, config string) {
 	t.Helper()
 
+	isolateConfigSearchPaths(t)
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yml"), []byte("cors:\n  enable: false\n"+config), 0600))
 
@@ -69,6 +81,7 @@ func TestServiceSecret(t *testing.T) {
 		assert.Len(t, ServiceSecret.GetString(), 64)
 	})
 	t.Run("InitDefaultConfig generates a secret on its own", func(t *testing.T) {
+		isolateConfigSearchPaths(t)
 		viper.Reset()
 		t.Cleanup(viper.Reset)
 		InitDefaultConfig()
@@ -221,6 +234,7 @@ func TestPathsFollowRootpath(t *testing.T) {
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, "config.yml")
 		require.NoError(t, os.WriteFile(configPath, []byte("cors:\n  enable: false\nservice:\n  rootpath: /pinned/root\n"), 0600))
+		isolateConfigSearchPaths(t)
 		SetConfigFile(configPath)
 		t.Cleanup(func() {
 			SetConfigFile("")

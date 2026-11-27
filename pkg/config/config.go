@@ -529,7 +529,7 @@ func initDefaultConfig() {
 	// Settings
 	DefaultSettingsAvatarProvider.setDefault("initials")
 	DefaultSettingsOverdueTaskRemindersEnabled.setDefault(true)
-	DefaultSettingsOverdueTaskRemindersTime.setDefault("9:00")
+	DefaultSettingsOverdueTaskRemindersTime.setDefault("09:00")
 	// Webhook
 	WebhooksEnabled.setDefault(true)
 	WebhooksTimeoutSeconds.setDefault(30)
@@ -773,6 +773,10 @@ func anchorPathsToRootpath() {
 	PluginsDir.Set(ResolvePath(PluginsDir.GetString()))
 }
 
+// systemConfigDir is the system-wide config search path. Tests point it at an
+// empty directory so they never read the host's config.
+var systemConfigDir = "/etc/vikunja/"
+
 // InitConfig initializes the config, sets defaults etc.
 func InitConfig() {
 
@@ -791,7 +795,7 @@ func InitConfig() {
 		viper.SetConfigFile(configFileOverride)
 	} else {
 		viper.AddConfigPath(ServiceRootpath.GetString())
-		viper.AddConfigPath("/etc/vikunja/")
+		viper.AddConfigPath(systemConfigDir)
 
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -912,6 +916,11 @@ func InitConfig() {
 	} else if _, err := time.LoadLocation(tz); err != nil {
 		log.Warningf("Configured defaultsettings.timezone %q is invalid (%s), falling back to %s", tz, err, ServiceTimeZone.GetString())
 		DefaultSettingsTimezone.Set(ServiceTimeZone.GetString())
+	}
+
+	// Older sample configs shipped "9:00"; the frontend's time input needs HH:MM.
+	if t, err := time.Parse("15:04", DefaultSettingsOverdueTaskRemindersTime.GetString()); err == nil {
+		DefaultSettingsOverdueTaskRemindersTime.Set(t.Format("15:04"))
 	}
 
 	publicURL := strings.TrimSuffix(ServicePublicURL.GetString(), "/")
