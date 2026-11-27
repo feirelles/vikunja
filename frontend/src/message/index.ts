@@ -20,6 +20,11 @@ export function getErrorText(reason: unknown): string {
 		if (path !== message) return message
 	}
 
+	// Proxies reject oversized uploads before the API sees them, so no code is set.
+	if (data.status === 413) {
+		return i18n.global.t('error.payloadTooLarge')
+	}
+
 	// v2 problem responses carry detail instead of message.
 	const fallback = data.message || data.detail || original.message || original.reason || reason
 	let message = typeof fallback === 'string' ? fallback : ''

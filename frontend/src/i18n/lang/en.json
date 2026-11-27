@@ -1284,7 +1284,8 @@
       "usedAsCover": "Cover image",
       "play": "Play",
       "playFile": "Play {file}",
-      "audioError": "Could not play this audio file."
+      "audioError": "Could not play this audio file.",
+      "tooLarge": "{file} is {size}, which is more than the maximum upload size of {max}. It was not uploaded."
     },
     "comment": {
       "title": "Comments",
@@ -1632,6 +1633,7 @@
   "error": {
     "error": "Error",
     "success": "Success",
+    "payloadTooLarge": "The upload is larger than the server accepts.",
     "0001": "You're not allowed to do that.",
     "1001": "A user with this username already exists.",
     "1002": "A user with this email address already exists.",

@@ -657,6 +657,19 @@ describe('configureApiClient', () => {
 		})
 	})
 
+	it('does not use an HTML error page as the message', async () => {
+		responses = [new Response('<!DOCTYPE html><html><body>413 Request Entity Too Large</body></html>', {
+			status: 413,
+			statusText: 'Payload Too Large',
+			headers: {'Content-Type': 'text/html'},
+		})]
+
+		await expectApiError(client.get({url: '/probe'}), {
+			status: 413,
+			detail: 'Payload Too Large',
+		})
+	})
+
 	it('turns a plain-text 404 into an ApiError', async () => {
 		responses = [new Response('404 page not found\n', {
 			status: 404,
