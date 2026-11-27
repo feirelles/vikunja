@@ -38,14 +38,20 @@ const (
 )
 
 func projectionFor(oapi *huma.OpenAPI, op *huma.Operation) projection {
-	if op.Method != http.MethodGet {
+	switch op.Method {
+	case http.MethodGet:
+	case http.MethodPost, http.MethodPut, http.MethodPatch:
+		if jsonResponseSchema(op) == nil {
+			return noProjection
+		}
+		return projectBody
+	default:
 		return noProjection
 	}
-	res := op.Responses["200"]
-	if res == nil || res.Content["application/json"] == nil || res.Content["application/json"].Schema == nil {
+	s := jsonResponseSchema(op)
+	if s == nil {
 		return noProjection
 	}
-	s := res.Content["application/json"].Schema
 	if s.Ref != "" {
 		s = oapi.Components.Schemas.SchemaFromRef(s.Ref)
 	}
@@ -55,13 +61,35 @@ func projectionFor(oapi *huma.OpenAPI, op *huma.Operation) projection {
 	return projectBody
 }
 
+func jsonResponseSchema(op *huma.Operation) *huma.Schema {
+	for _, code := range []string{"200", "201"} {
+		res := op.Responses[code]
+		if res != nil && res.Content["application/json"] != nil && res.Content["application/json"].Schema != nil {
+			return res.Content["application/json"].Schema
+		}
+	}
+	return nil
+}
+
+func compactModeFor(op *huma.Operation, proj projection) compactMode {
+	switch {
+	case proj == noProjection:
+		return compactNone
+	case op.Method != http.MethodGet:
+		return compactWrite
+	case proj == projectItems:
+		return compactList
+	}
+	return compactNone
+}
+
 func fieldsSchema() *jsonschema.Schema {
 	one := 1
 	return &jsonschema.Schema{
 		Type:        "array",
 		Items:       &jsonschema.Schema{Type: "string", MinLength: &one},
 		MinItems:    &one,
-		Description: `Return only these response fields. Dot paths select nested fields, also inside arrays (e.g. ["id", "title", "labels.title"]). Omit for the full response.`,
+		Description: `Return only these response fields. Dot paths select nested fields, also inside arrays (e.g. ["id", "title", "labels.title"]). ["*"] returns the full response. Omitted, list and write tools return a compact summary (a task: id, identifier, title, done, project_id, bucket_id, due_date, labels.title; writes leave out descriptions and comments, lists cut them to 200 characters) and single reads return the full object.`,
 	}
 }
 
