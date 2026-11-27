@@ -1435,7 +1435,6 @@
     },
     "questions": {
       "title": "Questions",
-      "loading": "Loading questions…",
       "count": "{count} question | {count} questions",
       "openCount": "{count} open question | {count} open questions",
       "recommended": "Recommended",
