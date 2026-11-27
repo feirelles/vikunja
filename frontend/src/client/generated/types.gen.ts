@@ -8674,7 +8674,7 @@ export type ProjectTasksListData = {
          */
         include_subprojects?: boolean;
         /**
-         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts still include them.
+         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts leave them out too; bucket limits still count every task.
          */
         hide_subtasks?: boolean;
         /**
@@ -9432,7 +9432,7 @@ export type ProjectViewBucketsTasksListData = {
          */
         include_subprojects?: boolean;
         /**
-         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts still include them.
+         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts leave them out too; bucket limits still count every task.
          */
         hide_subtasks?: boolean;
         /**
@@ -9602,7 +9602,7 @@ export type ProjectViewTasksListData = {
          */
         include_subprojects?: boolean;
         /**
-         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts still include them.
+         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts leave them out too; bucket limits still count every task.
          */
         hide_subtasks?: boolean;
         /**
@@ -9951,7 +9951,7 @@ export type TasksListData = {
          */
         include_subprojects?: boolean;
         /**
-         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts still include them.
+         * If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts leave them out too; bucket limits still count every task.
          */
         hide_subtasks?: boolean;
         /**
