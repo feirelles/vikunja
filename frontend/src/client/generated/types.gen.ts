@@ -2444,6 +2444,10 @@ export type Task = {
      */
     readonly labels?: Array<Label> | null;
     /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     */
+    readonly open_question_count?: number;
+    /**
      * How far the task is from done, between 0 and 1.
      */
     percent_done?: number;
@@ -2984,6 +2988,10 @@ export type TaskReadOneBody = {
      * The maximum permission the requesting user has on this task (0=read, 1=read/write, 2=admin).
      */
     readonly max_permission?: number;
+    /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     */
+    readonly open_question_count?: number;
     /**
      * How far the task is from done, between 0 and 1.
      */
@@ -3700,6 +3708,10 @@ export type TrashedTask = {
      * The labels on this task. Read-only here; use the label-task endpoints to add or remove labels.
      */
     readonly labels?: Array<Label> | null;
+    /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     */
+    readonly open_question_count?: number;
     /**
      * How far the task is from done, between 0 and 1.
      */
