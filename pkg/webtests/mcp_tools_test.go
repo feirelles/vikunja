@@ -19,6 +19,7 @@ package webtests
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"code.vikunja.io/api/pkg/config"
@@ -43,7 +44,9 @@ func TestMCP_Tools_TaskLifecycle(t *testing.T) {
 		"hex_color":   "ff8800",
 	}), &task)
 	id := int64(task["id"].(float64))
-	assert.Equal(t, "**keep me**", task["description"])
+	// Writes are compact: the description that was just sent is not echoed.
+	assert.NotContains(t, task, "description")
+	assert.NotEmpty(t, task["identifier"])
 	require.NotContains(t, c.callTool("tasks_update", map[string]any{
 		"task": id,
 		"done": true,
@@ -185,7 +188,7 @@ func TestMCP_Tools_CommentLifecycle(t *testing.T) {
 		"task":    1,
 		"comment": "from mcp",
 	}), &comment)
-	assert.Equal(t, "from mcp", comment["comment"])
+	assert.NotContains(t, comment, "comment")
 	assert.NotContains(t, comment["author"].(map[string]any), "email")
 	id := int64(comment["id"].(float64))
 	res := c.callTool("task_comments_update", map[string]any{
@@ -199,6 +202,52 @@ func TestMCP_Tools_CommentLifecycle(t *testing.T) {
 		"commentid": id,
 	}), &comment)
 	assert.Equal(t, "edited", comment["comment"])
+}
+func TestMCP_Tools_CompactResponses(t *testing.T) {
+	c := newMCPClient(t, mcpFullToken)
+	size := func(res map[string]any) int { return len(toolResultText(t, res)) }
+
+	create := map[string]any{
+		"project":     1,
+		"title":       "compact",
+		"description": "<p>" + strings.Repeat("long description ", 50) + "</p>",
+	}
+	compactCreate := c.callTool("tasks_create", create)
+	create["fields"] = []string{"*"}
+	fullCreate := c.callTool("tasks_create", create)
+	var task map[string]any
+	toolResultJSON(t, compactCreate, &task)
+	assert.ElementsMatch(t, []string{"id", "identifier", "title", "done", "project_id", "bucket_id", "due_date", "labels"}, mapKeys(task))
+
+	list := map[string]any{"per_page": 50}
+	compactList := c.callTool("tasks_list", list)
+	list["fields"] = []string{"*"}
+	fullList := c.callTool("tasks_list", list)
+	var page struct {
+		Items []map[string]any `json:"items"`
+	}
+	toolResultJSON(t, compactList, &page)
+	require.NotEmpty(t, page.Items)
+	assert.NotContains(t, page.Items[0], "description")
+
+	explicit := c.callTool("tasks_list", map[string]any{"per_page": 50, "fields": []string{"id", "description"}})
+	var explicitPage struct {
+		Items []map[string]any `json:"items"`
+	}
+	toolResultJSON(t, explicit, &explicitPage)
+	assert.ElementsMatch(t, []string{"id", "description"}, mapKeys(explicitPage.Items[0]))
+
+	t.Logf("tasks_create: full %d bytes, compact %d bytes", size(fullCreate), size(compactCreate))
+	t.Logf("tasks_list (%d items): full %d bytes, compact %d bytes", len(page.Items), size(fullList), size(compactList))
+	assert.Less(t, size(compactCreate), size(fullCreate)/2)
+	assert.Less(t, size(compactList), size(fullList)/2)
+}
+func mapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 func assigneeIDs(t *testing.T, c *mcpClient) []int64 {
 	t.Helper()

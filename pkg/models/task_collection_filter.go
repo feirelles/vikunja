@@ -535,6 +535,10 @@ func getNativeValueForTaskField(fieldName string, comparator taskFilterComparato
 	}
 
 	if fieldName == taskPropertyQuestions {
+		// A status is matched exactly; like and range comparators have no meaning here.
+		if !strictComparators[comparator] {
+			return nil, nil, ErrInvalidTaskFilterValue{Field: fieldName, Value: value}
+		}
 		statuses := []string{}
 		for _, val := range strings.Split(value, ",") {
 			status := TaskQuestionStatus(strings.TrimSpace(val))

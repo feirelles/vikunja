@@ -54,6 +54,16 @@ describe('getErrorText', () => {
 		expect(getErrorText(reason)).toBe('')
 	})
 
+	it('explains a 413 that carries no Vikunja error code', () => {
+		const text = getErrorText(new ApiError({status: 413, detail: 'Payload Too Large'}))
+
+		expect(text).toBe('The upload is larger than the server accepts.')
+	})
+
+	it('keeps the Vikunja message for a coded 413', () => {
+		expect(getErrorText({status: 413, code: 4012})).toBe('The task attachment is too large.')
+	})
+
 	it('handles a string rejection reason', () => {
 		expect(getErrorText('Request failed')).toBe('Request failed')
 	})

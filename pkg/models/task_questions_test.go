@@ -395,6 +395,64 @@ func TestTaskQuestion_Filter(t *testing.T) {
 
 	_, _, _, err := (&TaskCollection{Filter: "questions = bogus"}).ReadAll(s, u, "", 1, 50)
 	require.Error(t, err)
+	for _, filter := range []string{"questions like open", "questions > open"} {
+		_, _, _, err = (&TaskCollection{Filter: filter}).ReadAll(s, u, "", 1, 50)
+		assert.True(t, IsErrInvalidTaskFilterValue(err), "%s: %v", filter, err)
+	}
+	assert.ElementsMatch(t, []int64{1, 32}, ids(t, "questions in open, deferred"))
+}
+
+func TestTaskQuestion_AnswerReachesWebhooks(t *testing.T) {
+	db.LoadAndAssertFixtures(t)
+	u := &user.User{ID: 1}
+	s := db.NewSession()
+	defer s.Close()
+
+	hook := &Webhook{
+		TargetURL:   "https://example.com/answered",
+		Events:      []string{"task.question.answered"},
+		ProjectID:   1,
+		CreatedByID: 1,
+	}
+	_, err := s.Insert(hook)
+	require.NoError(t, err)
+	require.NoError(t, s.Commit())
+
+	events.ClearDispatchedEvents()
+	q := &TaskQuestion{ID: 1, TaskID: 1}
+	require.NoError(t, q.Answer(s, u, &TaskQuestionAnswer{Option: "B", Notes: "ship S3"}))
+	require.NoError(t, s.Commit())
+	events.DispatchPending(context.Background(), s)
+	answered := events.GetDispatchedEvents((&TaskQuestionAnsweredEvent{}).Name())
+	require.Len(t, answered, 1)
+
+	events.ClearDispatchedEvents()
+	events.TestListener(t, answered[0], &WebhookListener{EventName: "task.question.answered"})
+
+	delivered := webhookDeliveriesByID(t)
+	require.Contains(t, delivered, hook.ID)
+	raw, err := json.Marshal(delivered[hook.ID].Payload)
+	require.NoError(t, err)
+	var payload struct {
+		EventName string `json:"event_name"`
+		Data      struct {
+			Question struct {
+				ID           int64  `json:"id"`
+				Status       string `json:"status"`
+				AnswerOption string `json:"answer_option"`
+				AnswerNotes  string `json:"answer_notes"`
+			} `json:"question"`
+			Task struct {
+				ID int64 `json:"id"`
+			} `json:"task"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	assert.Equal(t, "task.question.answered", payload.EventName)
+	assert.Equal(t, int64(1), payload.Data.Task.ID)
+	assert.Equal(t, "answered", payload.Data.Question.Status)
+	assert.Equal(t, "B", payload.Data.Question.AnswerOption)
+	assert.Equal(t, "ship S3", payload.Data.Question.AnswerNotes)
 }
 
 func TestTaskQuestion_AnswerReachesWebhooks(t *testing.T) {

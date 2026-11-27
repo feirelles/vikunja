@@ -245,6 +245,8 @@ import {formatDateLong} from '@/helpers/time/formatDate'
 import {downloadAttachment, fetchAttachmentUrl, generateAttachmentUrl, releaseAttachmentUrl} from '@/helpers/attachments'
 import {downloadBlob} from '@/helpers/downloadBlob'
 import {getHumanSize} from '@/helpers/getHumanSize'
+import {parseFileSize} from '@/helpers/parseFileSize'
+import {useConfigStore} from '@/stores/config'
 import {useCopyToClipboard} from '@/composables/useCopyToClipboard'
 import {error, success} from '@/message'
 import {isRequestContextAbort} from '@/client/requestContext'
@@ -444,13 +446,37 @@ async function uploadNewAttachment() {
 	if (input) input.value = ''
 }
 
+const configStore = useConfigStore()
+
+// Sending a file the server will refuse wastes the whole upload before the error shows.
+function rejectOversizedFiles(files: File[]): File[] {
+	const maxBytes = parseFileSize(configStore.max_file_size)
+	if (maxBytes === null) {
+		return files
+	}
+	return files.filter(file => {
+		if (file.size <= maxBytes) {
+			return true
+		}
+		error(new Error(t('task.attachment.tooLarge', {
+			file: file.name,
+			size: getHumanSize(file.size),
+			max: getHumanSize(maxBytes),
+		})))
+		return false
+	})
+}
+
 async function uploadFilesToTask(files: File[] | FileList) {
 	if (loading.value) {
 		return
 	}
 
 	const taskId = props.task.id!
-	const batch = Array.from(files)
+	const batch = rejectOversizedFiles(Array.from(files))
+	if (batch.length === 0) {
+		return
+	}
 	uploadBatch.value = {
 		completed: 0,
 		total: batch.length,

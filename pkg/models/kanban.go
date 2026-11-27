@@ -24,6 +24,7 @@ import (
 	"code.vikunja.io/api/pkg/log"
 	"code.vikunja.io/api/pkg/user"
 	"code.vikunja.io/api/pkg/web"
+	"xorm.io/builder"
 	"xorm.io/xorm"
 )
 
@@ -86,13 +87,25 @@ func getBucketByID(s *xorm.Session, id int64) (b *Bucket, err error) {
 }
 
 func getDefaultBucketID(s *xorm.Session, view *ProjectView) (bucketID int64, err error) {
-	if view.DefaultBucketID != 0 {
+	return getDefaultBucketIDExcluding(s, view, 0)
+}
+
+// getDefaultBucketIDExcluding is getDefaultBucketID, except that the fallback
+// (the bucket with the lowest position) never picks excludeID. Deleting a bucket
+// uses it so the tasks are not moved into the bucket that is being removed.
+func getDefaultBucketIDExcluding(s *xorm.Session, view *ProjectView, excludeID int64) (bucketID int64, err error) {
+	if view.DefaultBucketID != 0 && view.DefaultBucketID != excludeID {
 		return view.DefaultBucketID, nil
+	}
+
+	var cond builder.Cond = builder.Eq{"project_view_id": view.ID}
+	if excludeID != 0 {
+		cond = cond.And(builder.Neq{"id": excludeID})
 	}
 
 	bucket := &Bucket{}
 	_, err = s.
-		Where("project_view_id = ?", view.ID).
+		Where(cond).
 		OrderBy("position asc, id asc").
 		Get(bucket)
 	if err != nil {
@@ -411,7 +424,7 @@ func (b *Bucket) Delete(s *xorm.Session, a web.Auth) (err error) {
 		}
 	}
 
-	defaultBucketID, err := getDefaultBucketID(s, pv)
+	defaultBucketID, err := getDefaultBucketIDExcluding(s, pv, b.ID)
 	if err != nil {
 		return err
 	}

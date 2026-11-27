@@ -27,9 +27,16 @@ function nonEmptyString(value: unknown): string | undefined {
 	return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 }
 
+// A proxy's error page (e.g. Cloudflare's 413) is HTML, which is no use as a message.
+function plainText(value: unknown): string | undefined {
+	const text = nonEmptyString(value)
+	return text !== undefined && /^<(!doctype|html|head|body)\b/i.test(text) ? undefined : text
+}
+
 // Echo rejects some /api/v2 requests before Huma (rate limits, invalid JWT) with a v1-shaped body
 // carrying `message` but no status or detail. Proxies and Go's default mux answer with plain text
 // ("Bad Gateway", "404 page not found"), which the generated client throws as a bare string.
+// HTML error pages fall back to the status text.
 export function normalizeProblemBody(error: unknown, response: Response | undefined): unknown {
 	if (!response || response.ok || error instanceof Error) {
 		return error
@@ -40,7 +47,7 @@ export function normalizeProblemBody(error: unknown, response: Response | undefi
 		status: response.status,
 		detail: nonEmptyString(body.detail)
 			?? nonEmptyString(body.message)
-			?? nonEmptyString(error)
+			?? plainText(error)
 			?? (response.statusText || `HTTP ${response.status}`),
 	})
 }

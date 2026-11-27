@@ -43,6 +43,8 @@ func specFor(t *testing.T, api huma.API, method, path string) *toolSpec {
 		op = item.Post
 	case http.MethodPatch:
 		op = item.Patch
+	case http.MethodDelete:
+		op = item.Delete
 	}
 	require.NotNil(t, op)
 	spec, err := buildToolSpec(api.OpenAPI(), op)
