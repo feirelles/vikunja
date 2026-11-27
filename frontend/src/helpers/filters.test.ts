@@ -17,6 +17,7 @@ describe('Filter Transformation', () => {
 		'assignees': 'assignees',
 		'createdBy': 'created_by',
 		'labels': 'labels',
+		'questions': 'questions',
 	}
 
 	describe('For API', () => {
@@ -615,6 +616,7 @@ describe('hasFilterQuery', () => {
 		'labels in 1, 2',
 		'labels not in 1',
 		'title like foo',
+		'questions = open',
 		'(done = false) && (priority > 2)',
 	])('treats "%s" as a filter', filter => {
 		expect(hasFilterQuery(filter)).toBe(true)

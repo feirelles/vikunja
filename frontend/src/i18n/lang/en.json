@@ -749,7 +749,8 @@
           "project": "The project the task belongs to (only available for saved filters, not on a project level)",
           "reminders": "The reminders of the task as a date field, will return all tasks with at least one reminder matching the query",
           "created": "The time and date when the task was created",
-          "updated": "The time and date when the task was last changed"
+          "updated": "The time and date when the task was last changed",
+          "questions": "The status of the task's questions (open, answered, deferred or cancelled), matches tasks with at least one question in that status"
         },
         "operators": {
           "intro": "The available operators for filtering include:",
@@ -1432,6 +1433,25 @@
       "dateTime": "Combine any of the date formats with \"{time}\" (or {timePM}) to set a time.",
       "repeats": "Repeating tasks",
       "repeatsDescription": "To set a task as repeating in an interval, simply add '{suffix}' to the task text. The amount needs to be a number and can be omitted to use just the type (see examples)."
+    },
+    "questions": {
+      "title": "Questions",
+      "count": "{count} question | {count} questions",
+      "openCount": "{count} open question | {count} open questions",
+      "recommended": "Recommended",
+      "deferred": "Deferred",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
+      "other": "Other answer",
+      "otherPlaceholder": "Type a different answer…",
+      "sendOther": "Send answer",
+      "notes": "Notes",
+      "notesPlaceholder": "Optional, sent along with your answer",
+      "defer": "Defer",
+      "answeredBy": "answered by {user} {date}",
+      "deferredBy": "deferred by {user} {date}",
+      "answerSuccess": "The question was answered.",
+      "deferSuccess": "The question was deferred."
     }
   },
   "team": {
