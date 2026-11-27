@@ -51,6 +51,7 @@ func Root(version string) *cobra.Command {
 	root.AddCommand(newClaimCmd())
 	root.AddCommand(newPrimeCmd())
 	root.AddCommand(newRelateCmd())
+	root.AddCommand(newPRCmd())
 	root.AddCommand(newAttachCmd())
 	root.AddCommand(newAPICmd())
 	root.AddCommand(newLoginCmd())

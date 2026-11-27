@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -31,6 +32,7 @@ import (
 
 func newClaimCmd() *cobra.Command {
 	var branchFlag string
+	var checkout bool
 	cmd := &cobra.Command{
 		Use:   "claim <id>",
 		Short: "Claim a task: assign the bot, move to In Progress, tag with branch",
@@ -40,9 +42,15 @@ veans:branch:<name> label.
 Without --branch the label uses the branch of the current git checkout (none
 when HEAD is detached or outside a repo). With --branch <name> the label uses
 <name> instead, and any other veans:branch:* label already on the task is
-removed, so re-running claim with the right branch fixes a wrong label.`,
+removed, so re-running claim with the right branch fixes a wrong label.
+
+--checkout (with --branch) also switches the checkout to <name>, creating
+it from origin/<pr_base> (pr_base from .veans.yml, else main) after a fetch
+when it doesn't exist yet. The git step runs first: if it fails, the task
+is not touched.`,
 		Example: `  veans claim VKJ-6
-  veans claim VKJ-6 --branch feat/veans-claim-branch`,
+  veans claim VKJ-6 --branch feat/veans-claim-branch
+  veans claim VKJ-6 --branch feat/veans-claim-branch --checkout`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			explicit := cmd.Flags().Changed("branch")
@@ -50,9 +58,17 @@ removed, so re-running claim with the right branch fixes a wrong label.`,
 			if explicit && branch == "" {
 				return output.New(output.CodeValidation, "--branch must not be empty")
 			}
+			if checkout && !explicit {
+				return output.New(output.CodeValidation, "--checkout needs --branch")
+			}
 			rt, err := loadRuntime(cmd.Context())
 			if err != nil {
 				return err
+			}
+			if checkout {
+				if err := checkoutBranch(cmd.Context(), runGit, branch, rt.cfg.PRBaseBranch()); err != nil {
+					return err
+				}
 			}
 			if !explicit {
 				branch = currentGitBranch(cmd.Context())
@@ -62,6 +78,8 @@ removed, so re-running claim with the right branch fixes a wrong label.`,
 	}
 	cmd.Flags().StringVar(&branchFlag, "branch", "",
 		"branch name for the veans:branch:<name> label instead of the current checkout's; replaces other veans:branch:* labels on the task")
+	cmd.Flags().BoolVar(&checkout, "checkout", false,
+		"switch to --branch, creating it from origin/<pr_base> when missing")
 	return cmd
 }
 
@@ -174,4 +192,31 @@ func tagClaimBranch(ctx context.Context, rt *runtime, current *client.Task, labe
 		}
 	}
 	return nil
+}
+
+// checkoutBranch switches to branch, creating it from origin/<base> (after
+// fetching base) when no local branch of that name exists. git is injected
+// for tests.
+func checkoutBranch(ctx context.Context, git func(context.Context, ...string) (string, error), branch, base string) error {
+	if _, err := git(ctx, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
+		if _, err := git(ctx, "switch", branch); err != nil {
+			return output.Wrap(output.CodeUnknown, err, "git switch %s: %v", branch, gitErrText(err))
+		}
+		return nil
+	}
+	if _, err := git(ctx, "fetch", "origin", base); err != nil {
+		return output.Wrap(output.CodeUnknown, err, "git fetch origin %s: %v", base, gitErrText(err))
+	}
+	if _, err := git(ctx, "switch", "--no-track", "-c", branch, "origin/"+base); err != nil {
+		return output.Wrap(output.CodeUnknown, err, "git switch -c %s origin/%s: %v", branch, base, gitErrText(err))
+	}
+	return nil
+}
+
+func gitErrText(err error) string {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && len(ee.Stderr) > 0 {
+		return strings.TrimSpace(string(ee.Stderr))
+	}
+	return err.Error()
 }

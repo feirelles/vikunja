@@ -49,6 +49,7 @@ type primeContext struct {
 	TaskIDExample     string
 	TaskURLExample    string
 	UntrustedServer   string
+	PRBase            string
 }
 
 func newPrimeCmd() *cobra.Command {
@@ -115,6 +116,7 @@ func buildPrimeContext(ctx context.Context, cfg *config.Config, gate *trust.Gate
 		TaskIDExample:     cfg.FormatTaskID(1),
 		TaskURLExample:    cfg.TaskURL(123),
 		UntrustedServer:   untrusted,
+		PRBase:            cfg.PRBaseBranch(),
 	}
 }
 
