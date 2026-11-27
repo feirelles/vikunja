@@ -94,7 +94,7 @@ func (m *Module) callTool(ctx context.Context, name string, rawArgs json.RawMess
 	if err != nil {
 		return nil, err
 	}
-	return t.spec.projection.apply(fields, result), nil
+	return t.spec.shape(fields, result), nil
 }
 func (t *tool) newRequest(ctx context.Context, ec *echo.Context, args map[string]json.RawMessage) (*http.Request, error) {
 	caller := ec.Request()

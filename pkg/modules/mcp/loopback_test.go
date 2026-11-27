@@ -96,7 +96,7 @@ func TestCallTool_CreateSendsJSONBody(t *testing.T) {
 }
 func TestCallTool_UpdateIsMergePatch(t *testing.T) {
 	m, ctx := newTestCaller(t)
-	res, err := m.callTool(ctx, "things_update", json.RawMessage(`{"id":7,"done":true}`))
+	res, err := m.callTool(ctx, "things_update", json.RawMessage(`{"id":7,"done":true,"fields":["*"]}`))
 	require.NoError(t, err)
 	out := echoResult(t, res)
 	assert.Equal(t, http.MethodPut, out["method"])

@@ -69,12 +69,13 @@ func TestParseFields_WholeValueWins(t *testing.T) {
 	assert.Equal(t, fieldTree{"owner": nil}, parseFields([]string{"owner.name", "owner"}))
 	assert.Equal(t, fieldTree{"owner": nil}, parseFields([]string{"owner", "owner.name"}))
 }
-func TestBuildToolSpec_FieldsOnlyOnReads(t *testing.T) {
+func TestBuildToolSpec_FieldsOnReadsAndWrites(t *testing.T) {
 	api := newTestAPI(t)
 	assert.Contains(t, specFor(t, api, http.MethodGet, "/things/{id}").schema.Properties, fieldsParam)
 	assert.Contains(t, specFor(t, api, http.MethodGet, "/things").schema.Properties, fieldsParam)
-	assert.NotContains(t, specFor(t, api, http.MethodPost, "/things").schema.Properties, fieldsParam)
-	assert.NotContains(t, specFor(t, api, http.MethodPatch, "/things/{id}").schema.Properties, fieldsParam)
+	assert.Contains(t, specFor(t, api, http.MethodPost, "/things").schema.Properties, fieldsParam)
+	assert.Contains(t, specFor(t, api, http.MethodPatch, "/things/{id}").schema.Properties, fieldsParam)
+	assert.NotContains(t, specFor(t, api, http.MethodDelete, "/things/{id}").schema.Properties, fieldsParam)
 }
 func TestBuildToolSpec_FieldsParamCollision(t *testing.T) {
 	_, api := humatest.New(t)
