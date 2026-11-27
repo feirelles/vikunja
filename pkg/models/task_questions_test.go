@@ -395,6 +395,11 @@ func TestTaskQuestion_Filter(t *testing.T) {
 
 	_, _, _, err := (&TaskCollection{Filter: "questions = bogus"}).ReadAll(s, u, "", 1, 50)
 	require.Error(t, err)
+	for _, filter := range []string{"questions like open", "questions > open"} {
+		_, _, _, err = (&TaskCollection{Filter: filter}).ReadAll(s, u, "", 1, 50)
+		assert.True(t, IsErrInvalidTaskFilterValue(err), "%s: %v", filter, err)
+	}
+	assert.ElementsMatch(t, []int64{1, 32}, ids(t, "questions in open, deferred"))
 }
 
 func TestTaskQuestion_AnswerReachesWebhooks(t *testing.T) {
