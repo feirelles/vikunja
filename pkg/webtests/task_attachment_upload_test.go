@@ -73,8 +73,10 @@ func TestTaskAttachmentUploadSize(t *testing.T) {
 			config.FilesMaxSize.Set(tt.configMaxSize)
 			defer config.FilesMaxSize.Set(oldMaxSize)
 
-			// Re-initialize config to update maxFileSizeInBytes
-			config.InitConfig()
+			// Update maxFileSizeInBytes. Not via config.InitConfig: that reads the
+			// host's config files and leaks their values into later tests.
+			require.NoError(t, config.SetMaxFileSizeMBytesFromString(tt.configMaxSize))
+			defer func() { _ = config.SetMaxFileSizeMBytesFromString(oldMaxSize) }()
 
 			// Create Echo instance with the updated config
 			e := routes.NewEcho()
