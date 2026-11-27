@@ -35,6 +35,7 @@ type toolSpec struct {
 	params     map[string]*huma.Param
 	hasBody    bool
 	projection projection
+	compact    compactMode
 }
 
 func falseSchema() *jsonschema.Schema { return &jsonschema.Schema{Not: &jsonschema.Schema{}} }
@@ -55,7 +56,7 @@ const formatParamDescription = "Rich-text format for description fields: html (d
 const formatArgHint = "Pass format=markdown to exchange rich-text fields as Markdown."
 
 const serverInstructions = `Rich-text fields (task and project descriptions, comments) are HTML by default. Pass format: "markdown" on read, list and update tools to exchange them as GFM Markdown.
-Read and list tools return every field by default; pass fields to get only the ones you need.
+List and write tools return a compact summary by default and single reads the full object; pass fields to choose the response fields, or fields: ["*"] for everything.
 Filter queries combine conditions with && and ||, not "and"/"or". Call ` + toolFilterSyntax + ` for the full filter syntax.`
 
 func buildToolSpec(oapi *huma.OpenAPI, op *huma.Operation) (*toolSpec, error) {
@@ -132,9 +133,14 @@ func buildToolSpec(oapi *huma.OpenAPI, op *huma.Operation) (*toolSpec, error) {
 	proj := projectionFor(oapi, op)
 	if proj != noProjection {
 		if _, clash := props[fieldsParam]; clash {
-			return nil, fmt.Errorf("mcp: %s: %q collides with the response projection argument", op.OperationID, fieldsParam)
+			if op.Method == http.MethodGet {
+				return nil, fmt.Errorf("mcp: %s: %q collides with the response projection argument", op.OperationID, fieldsParam)
+			}
+			// A write whose body has its own fields (e.g. tasks bulk update) keeps the full response.
+			proj = noProjection
+		} else {
+			props[fieldsParam] = fieldsSchema()
 		}
-		props[fieldsParam] = fieldsSchema()
 	}
 	required = slices.DeleteFunc(required, func(name string) bool { return props[name] == nil })
 	sort.Strings(required)
@@ -154,6 +160,7 @@ func buildToolSpec(oapi *huma.OpenAPI, op *huma.Operation) (*toolSpec, error) {
 		params:     params,
 		hasBody:    hasBody,
 		projection: proj,
+		compact:    compactModeFor(op, proj),
 	}, nil
 }
 

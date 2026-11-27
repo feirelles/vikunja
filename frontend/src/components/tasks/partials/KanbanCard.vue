@@ -122,6 +122,10 @@
 					:task="task"
 					class="project-task-icon"
 				/>
+				<QuestionCount
+					v-if="(task.open_question_count ?? 0) > 0"
+					:count="task.open_question_count ?? 0"
+				/>
 				<AssigneeList
 					v-if="task.assignees.length > 0"
 					:assignees="task.assignees"
@@ -149,6 +153,7 @@ import Done from '@/components/misc/Done.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
 import ChecklistSummary from './ChecklistSummary.vue'
 import CommentCount from './CommentCount.vue'
+import QuestionCount from './QuestionCount.vue'
 
 import {getHexColor, getTaskIdentifier} from '@/helpers/task'
 import type {Task as ITask} from '@/client/generated'

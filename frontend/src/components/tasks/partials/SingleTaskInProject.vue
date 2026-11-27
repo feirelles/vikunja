@@ -143,6 +143,11 @@
 						:task="task"
 						class="project-task-icon"
 					/>
+					<QuestionCount
+						v-if="(task.open_question_count ?? 0) > 0"
+						:count="task.open_question_count ?? 0"
+						class="project-task-icon"
+					/>
 				</span>
 
 				<ChecklistSummary :task="task" />
@@ -228,6 +233,7 @@ import DeferTask from '@/components/tasks/partials/DeferTask.vue'
 import OverdueIndicator from '@/components/tasks/partials/OverdueIndicator.vue'
 import ChecklistSummary from '@/components/tasks/partials/ChecklistSummary.vue'
 import CommentCount from '@/components/tasks/partials/CommentCount.vue'
+import QuestionCount from '@/components/tasks/partials/QuestionCount.vue'
 
 import ProgressBar from '@/components/misc/ProgressBar.vue'
 import BaseButton from '@/components/base/BaseButton.vue'

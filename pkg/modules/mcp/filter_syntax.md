@@ -33,6 +33,7 @@ A filter is one or more conditions of the form `field operator value`.
 | `labels` | number | label ID, not the label title |
 | `assignees` | text | username |
 | `created_by` | text | username |
+| `questions` | text | question status: `open`, `answered`, `deferred`, `cancelled`; matches if any question of the task has it (`questions = open`) |
 | `bucket_id` | number | Kanban bucket ID |
 | `id`, `index`, `repeat_after`, `hex_color`, `uid` | | |
 

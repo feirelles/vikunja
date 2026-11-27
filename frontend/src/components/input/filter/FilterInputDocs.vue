@@ -34,6 +34,7 @@ const showDocs = ref(false)
 			<li><code>reminders</code>: {{ $t('filters.query.help.fields.reminders') }}</li>
 			<li><code>created</code>: {{ $t('filters.query.help.fields.created') }}</li>
 			<li><code>updated</code>: {{ $t('filters.query.help.fields.updated') }}</li>
+			<li><code>questions</code>: {{ $t('filters.query.help.fields.questions') }}</li>
 		</ul>
 		<p>{{ $t('filters.query.help.canUseDatemath') }}</p>
 		<p>{{ $t('filters.query.help.operators.intro') }}</p>

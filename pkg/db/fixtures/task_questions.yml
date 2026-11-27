@@ -1,0 +1,37 @@
+- id: 1
+  task_id: 1
+  author_id: 1
+  title: Which storage backend?
+  summary: Pick where uploads go.
+  details: '<p>Longer context.</p>'
+  options: '[{"key":"A","label":"Local disk"},{"key":"B","label":"S3","description":"Needs credentials"},{"key":"C","label":"Both"}]'
+  recommendation: '{"key":"B","reason":"Survives a host rebuild"}'
+  status: open
+  created: 2020-02-19 18:07:06
+  updated: 2020-02-19 18:07:06
+- id: 2
+  task_id: 1
+  author_id: 1
+  title: Keep the old endpoint?
+  options: '[{"key":"A","label":"Yes"},{"key":"B","label":"No"}]'
+  status: answered
+  answer_option: A
+  answer_notes: for one release
+  answered_by_id: 1
+  answered_at: 2020-02-20 10:00:00
+  created: 2020-02-19 18:08:06
+  updated: 2020-02-20 10:00:00
+- id: 3
+  task_id: 32
+  author_id: 6
+  title: Read-only question
+  status: open
+  created: 2020-02-19 18:07:06
+  updated: 2020-02-19 18:07:06
+- id: 4
+  task_id: 14
+  author_id: 5
+  title: Question in another project
+  status: open
+  created: 2020-02-19 18:07:06
+  updated: 2020-02-19 18:07:06

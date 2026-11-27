@@ -74,6 +74,8 @@ func RegisterListeners() {
 		RegisterEventForWebhook(&TaskCommentCreatedEvent{})
 		RegisterEventForWebhook(&TaskCommentUpdatedEvent{})
 		RegisterEventForWebhook(&TaskCommentDeletedEvent{})
+		RegisterEventForWebhook(&TaskQuestionCreatedEvent{})
+		RegisterEventForWebhook(&TaskQuestionAnsweredEvent{})
 		RegisterEventForWebhook(&TaskAttachmentCreatedEvent{})
 		RegisterEventForWebhook(&TaskAttachmentDeletedEvent{})
 		RegisterEventForWebhook(&TaskRelationCreatedEvent{})

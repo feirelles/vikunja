@@ -24,6 +24,7 @@ const attachments = vi.hoisted(() => ({
 vi.mock('@/helpers/attachments', () => attachments)
 
 import KanbanCard from './KanbanCard.vue'
+import QuestionCount from './QuestionCount.vue'
 
 class FakeIntersectionObserver {
 	static instances: FakeIntersectionObserver[] = []
@@ -336,5 +337,22 @@ describe('KanbanCard', () => {
 
 		expect(observer.observing).toBe(false)
 		expect(attachments.fetchAttachmentUrl).not.toHaveBeenCalled()
+	})
+
+	it.each([
+		[0, false],
+		[undefined, false],
+		[2, true],
+	])('shows the open question badge for a count of %s: %s', (count, shown) => {
+		const wrapper = mountCard(normalizeTask({
+			id: 9,
+			project_id: 1,
+			title: 'Has questions',
+			open_question_count: count,
+		}))
+
+		const badge = wrapper.findComponent(QuestionCount)
+		expect(badge.exists()).toBe(shown)
+		if (shown) expect(badge.props('count')).toBe(count)
 	})
 })

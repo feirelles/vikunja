@@ -53,6 +53,7 @@ export const AVAILABLE_FILTER_FIELDS = [
 	'done',
 	'priority',
 	'percentDone',
+	'questions',
 ]
 
 export const FILTER_OPERATORS = [

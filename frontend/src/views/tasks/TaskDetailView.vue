@@ -92,6 +92,11 @@
 				</header>
 
 				<div class="detail-content">
+					<TaskQuestions
+						:task-id="task.id"
+						:can-write="canWrite"
+					/>
+
 					<!-- Description -->
 					<div class="details content description">
 						<Description
@@ -557,6 +562,7 @@ import RelatedTasks from '@/components/tasks/partials/RelatedTasks.vue'
 import Reminders from '@/components/tasks/partials/Reminders.vue'
 import RepeatAfter from '@/components/tasks/partials/RepeatAfter.vue'
 import TaskPropertyRow from '@/components/tasks/partials/TaskPropertyRow.vue'
+import TaskQuestions from '@/components/tasks/partials/TaskQuestions.vue'
 import TaskSubscription from '@/components/misc/Subscription.vue'
 import Dropdown from '@/components/misc/Dropdown.vue'
 import DropdownItem from '@/components/misc/DropdownItem.vue'

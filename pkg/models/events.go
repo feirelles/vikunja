@@ -128,6 +128,30 @@ func (t *TaskCommentCreatedEvent) Name() string {
 	return "task.comment.created"
 }
 
+// TaskQuestionCreatedEvent represents an event where a question was asked on a task
+type TaskQuestionCreatedEvent struct {
+	Task     *Task         `json:"task"`
+	Question *TaskQuestion `json:"question"`
+	Doer     *user.User    `json:"doer"`
+}
+
+// Name defines the name for TaskQuestionCreatedEvent
+func (t *TaskQuestionCreatedEvent) Name() string {
+	return "task.question.created"
+}
+
+// TaskQuestionAnsweredEvent represents an event where a task question was answered or deferred
+type TaskQuestionAnsweredEvent struct {
+	Task     *Task         `json:"task"`
+	Question *TaskQuestion `json:"question"`
+	Doer     *user.User    `json:"doer"`
+}
+
+// Name defines the name for TaskQuestionAnsweredEvent
+func (t *TaskQuestionAnsweredEvent) Name() string {
+	return "task.question.answered"
+}
+
 // TaskCommentUpdatedEvent represents a TaskCommentUpdatedEvent event
 type TaskCommentUpdatedEvent struct {
 	Task    *Task        `json:"task"`
