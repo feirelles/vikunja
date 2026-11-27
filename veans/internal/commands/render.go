@@ -46,6 +46,7 @@ type taskSummary struct {
 	Identifier  string              `json:"identifier"`
 	Title       string              `json:"title"`
 	Status      string              `json:"status,omitempty"`
+	Bucket      string              `json:"bucket,omitempty"`
 	Done        bool                `json:"done"`
 	Priority    int64               `json:"priority,omitempty"`
 	Labels      []string            `json:"labels"`
@@ -55,21 +56,21 @@ type taskSummary struct {
 	Related     map[string][]string `json:"related,omitempty"`
 }
 
-// taskStatus is the canonical status of t's bucket on the configured view, or
-// the bucket's own title when it maps to none (a project may add buckets such
-// as Backlog or Blocked next to the five veans knows).
+// taskStatus is the canonical status of t's bucket on the configured view,
+// or "" when the bucket maps to none (a project may keep buckets such as
+// Blocked next to the five veans knows).
 func (r *runtime) taskStatus(t *client.Task) string {
-	if st := status.FromBucketID(t.CurrentBucketID(r.cfg.ViewID), r.cfg.Buckets); st != "" {
-		return string(st)
-	}
-	return r.viewBucket(t)
+	return string(status.FromBucketID(t.CurrentBucketID(r.cfg.ViewID), r.cfg.Buckets))
 }
 
+// bucketTitle is the title of t's bucket as the board shows it, falling back
+// to the canonical title when the task carries no bucket details. A project
+// may map a status to a bucket of another name (todo → "Backlog").
 func (r *runtime) bucketTitle(t *client.Task) string {
-	if st := status.FromBucketID(t.CurrentBucketID(r.cfg.ViewID), r.cfg.Buckets); st != "" {
-		return st.BucketTitle()
+	if title := r.viewBucket(t); title != "" {
+		return title
 	}
-	return r.viewBucket(t)
+	return status.FromBucketID(t.CurrentBucketID(r.cfg.ViewID), r.cfg.Buckets).BucketTitle()
 }
 
 func (r *runtime) viewBucket(t *client.Task) string {
@@ -87,6 +88,7 @@ func (r *runtime) summarize(t *client.Task, withBody bool) *taskSummary {
 		Identifier: r.cfg.FormatTaskID(t.Index),
 		Title:      t.Title,
 		Status:     r.taskStatus(t),
+		Bucket:     r.viewBucket(t),
 		Done:       t.Done,
 		Priority:   t.Priority,
 		Labels:     []string{},
@@ -152,7 +154,7 @@ func (r *runtime) selectFields(t *client.Task, fields []string) (map[string]any,
 			out[f] = v
 			continue
 		}
-		if f == "status" || f == "related" || f == "assignees" || f == "description" || f == "priority" {
+		if f == "status" || f == "bucket" || f == "related" || f == "assignees" || f == "description" || f == "priority" {
 			out[f] = nil // known key, empty on this task
 			continue
 		}

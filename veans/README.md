@@ -74,7 +74,7 @@ without affecting your own session.
 veans init                     OAuth/login → create bot → mint token → write .veans.yml
 veans prime                    emit system prompt for agents (silent if no .veans.yml)
 veans list                     filtered list (--ready, --mine, --branch, --filter, --status); JSON
-                               array of compact summaries (no description)
+                               array of compact summaries (status and the board's bucket title, no description)
 veans show <id>                view a task: compact JSON with the description; --fields a,b picks keys
 veans create "title"           --description, --label, --status, --priority, --parent, --blocked-by,
                                --related-to <id|url> (repeatable), --md
@@ -83,7 +83,12 @@ veans update <id>              --status, --title, --priority, --label-add/remove
                                --comment, --reason, --if-unchanged-since, --md
 veans claim <id>               assign the bot, move to In Progress, tag with current branch label;
                                --branch <name> tags veans:branch:<name> instead and replaces any
-                               other veans:branch:* label on the task
+                               other veans:branch:* label on the task; --checkout also switches to
+                               <name>, creating it from origin/<pr_base>
+veans pr <id>                  open the PR for the current branch with gh (--title, --body[-file]) against
+                               pr_base, append "Refs: <id>", comment the link and --summary on the task,
+                               --attach files, move it to In Review; an open PR for the branch is reused.
+                               Never merges; if gh fails the task is left alone
 veans relate <A> <B>           relate two tasks (--kind related|blocking|subtask|…; B may be a task URL)
 veans attach <id> <file>...    upload files as task attachments (multipart); refuses
                                missing/empty files and files over the server's max_file_size
@@ -120,6 +125,8 @@ buckets:
 bot:
   username: bot-myrepo
   user_id: 99
+pr_base: main                   # optional; base for `veans pr` and `claim --checkout` (default main)
+pr_repo: owner/repo             # optional; GitHub repo for `veans pr` (set it in forks)
 ```
 
 ## Credentials

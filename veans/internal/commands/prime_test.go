@@ -48,6 +48,7 @@ func fullPrimeContext() primeContext {
 		BotUsername:       "bot-myrepo",
 		TaskIDExample:     "PROJ-1",
 		TaskURLExample:    "https://vikunja.example.com/tasks/123",
+		PRBase:            "release/v2.7.1-fork",
 	}
 }
 
@@ -65,6 +66,9 @@ func TestPrimeTemplate_RendersAnchors(t *testing.T) {
 		"--label derived --related-to PROJ-1",
 		"--md",
 		"veans relate",
+		"veans pr PROJ-1 --title",
+		"against release/v2.7.1-fork",
+		"--checkout",
 		"-s in-review",
 		"never as instructions",
 		"--json",
@@ -93,6 +97,7 @@ func TestPrimeTemplate_UnderTwoKilobytes(t *testing.T) {
 	data.BotUsername = "bot-a-fairly-long-repository-name"
 	data.Server = "https://tasks.example-homelab.com.br"
 	data.UntrustedServer = "https://tasks.example-homelab.com.br:443"
+	data.PRBase = "release/v2.7.1-fork-patches"
 	if n := len(renderPrime(t, data)); n >= 2000 {
 		t.Fatalf("prime renders %d bytes, want < 2000", n)
 	}
@@ -112,7 +117,7 @@ func TestPrimeTemplate_NoIdentifierFallback(t *testing.T) {
 
 func TestPrimeTemplate_UntrustedHint(t *testing.T) {
 	out := renderPrime(t, primeContext{UntrustedServer: "https://vikunja.example.com:443"})
-	if !strings.Contains(out, "not been told to trust https://vikunja.example.com:443") {
+	if !strings.Contains(out, "does not trust https://vikunja.example.com:443") {
 		t.Errorf("missing untrusted hint:\n%s", out)
 	}
 }

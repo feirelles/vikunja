@@ -57,6 +57,14 @@ type Config struct {
 	// don't surface this knob unless the operator opts in.
 	HTTPTimeout time.Duration `yaml:"http_timeout,omitempty"`
 
+	// PRBase is the branch `veans pr` opens pull requests against and
+	// `veans claim --checkout` branches from. Empty means DefaultPRBase.
+	PRBase string `yaml:"pr_base,omitempty"`
+	// PRRepo is the GitHub repository (OWNER/REPO) for `veans pr`. Empty
+	// lets gh pick; set it in forks, where gh would otherwise ask or pick
+	// the upstream repository.
+	PRRepo string `yaml:"pr_repo,omitempty"`
+
 	path string `yaml:"-"`
 }
 
@@ -73,6 +81,17 @@ type Buckets struct {
 type Bot struct {
 	Username string `yaml:"username"`
 	UserID   int64  `yaml:"user_id"`
+}
+
+// DefaultPRBase is the pull request base when .veans.yml sets none.
+const DefaultPRBase = "main"
+
+// PRBaseBranch returns pr_base, or DefaultPRBase when unset.
+func (c *Config) PRBaseBranch() string {
+	if b := strings.TrimSpace(c.PRBase); b != "" {
+		return b
+	}
+	return DefaultPRBase
 }
 
 // Path returns the absolute path the config was loaded from (or written to).

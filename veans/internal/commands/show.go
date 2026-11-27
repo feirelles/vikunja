@@ -28,7 +28,7 @@ func newShowCmd() *cobra.Command {
 		Use:   "show <id>",
 		Short: "Show a task by PROJ-NN, #NN, or numeric ID",
 		Long: `Show a task. The default output is a compact JSON object: id, identifier,
-title, status, done, priority, label titles, assignee usernames, url,
+title, status, bucket, done, priority, label titles, assignee usernames, url,
 description (HTML) and related task identifiers. --fields picks keys (from
 that summary, then from the full task object); --json prints the full task.`,
 		Example: `  veans show VKJ-6

@@ -82,8 +82,25 @@ func TestCreateShowList_RoundTrip(t *testing.T) {
 		t.Fatalf("list returned empty array; expected at least our created task")
 	}
 
+	// Default list output: compact summaries, labels as plain titles.
+	compactOut, _, code := h.Run(t, ws, "list")
+	if code != 0 {
+		t.Fatalf("list (compact) exit %d", code)
+	}
+	var compact []struct {
+		Identifier string   `json:"identifier"`
+		Labels     []string `json:"labels"`
+		URL        string   `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(compactOut), &compact); err != nil {
+		t.Fatalf("decode compact list: %v\n%s", err, compactOut)
+	}
+	if len(compact) == 0 || compact[0].Identifier == "" || compact[0].URL == "" || strings.Contains(compactOut, "description") {
+		t.Fatalf("compact list: %s", compactOut)
+	}
+
 	// --filter passthrough: only items with priority > 2.
-	filterOut, _, code := h.Run(t, ws, "list", "--filter", "priority > 2")
+	filterOut, _, code := h.Run(t, ws, "list", "--filter", "priority > 2", "--json")
 	if code != 0 {
 		t.Fatalf("list --filter exit %d\n%s", code, filterOut)
 	}

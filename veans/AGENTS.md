@@ -218,7 +218,7 @@ one-off setup:
 - **`login`** — rotate the bot's token.
 
 Everything else (`list`, `show`, `create`, `update`, `claim`, `relate`,
-`attach`, `api`, `prime`, `version`) is **agent-only**:
+`pr`, `attach`, `api`, `prime`, `version`) is **agent-only**:
 
 - **Output is short by default; `--json` gives the full object.** The
   agent pays for every byte in its context. `create` / `update` / `claim`
@@ -255,6 +255,24 @@ Everything else (`list`, `show`, `create`, `update`, `claim`, `relate`,
 - `prime` must stay under 2,000 bytes (`TestPrimeTemplate_UnderTwoKilobytes`):
   it is loaded in every session and again on every compaction. No emphasis
   tags, no tutorials; one line per command of the task cycle.
+
+## `veans pr`
+
+- gh is reached only through the `ghRunner` package var (`pr.go`); tests
+  swap it. It only ever runs `gh pr list` and `gh pr create`: `veans pr`
+  must never merge (the auto-mode classifier denies `gh pr merge`, and the
+  review happens on the PR) and never moves a task to Done.
+- Order is fixed: validate every local input (branch, files, body) → find
+  an open PR for the head branch or create one → only then write to
+  Vikunja (attachments, then one `runUpdate` with the comment and the move
+  to In Review). A gh failure leaves the task untouched; tests pin it.
+- The PR body goes to gh on stdin (`--body-file -`), never as an argument.
+- `writeGap` (1.5 s) spaces the attachment upload from the update: SQLite
+  servers answer "database is locked" to back-to-back writes from several
+  sessions.
+- `pr_base` / `pr_repo` in `.veans.yml` are optional; `PRBaseBranch()`
+  falls back to `main`. `claim --checkout` branches from `origin/<pr_base>`
+  and runs git before any Vikunja write.
 
 ## Things to *not* do
 
