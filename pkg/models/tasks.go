@@ -174,6 +174,9 @@ type Task struct {
 	// Comment count of this task. Only present when fetching tasks with the `expand` parameter set to `comment_count`.
 	CommentCount *int64 `xorm:"-" json:"comment_count,omitempty" readOnly:"true" doc:"The number of comments on this task. Only present when requested via the comment_count expand option."`
 
+	// The number of open questions on this task.
+	OpenQuestionCount int64 `xorm:"-" json:"open_question_count,omitempty" readOnly:"true" doc:"The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none."`
+
 	// Time entry count of this task. Only present when fetching tasks with the `expand` parameter set to `time_entries_count`.
 	TimeEntriesCount *int64 `xorm:"-" json:"time_entries_count,omitempty" readOnly:"true" doc:"The number of time entries on this task. Only present when requested via the time_entries_count expand option."`
 
@@ -839,6 +842,11 @@ func addMoreInfoToTasks(s *xorm.Session, taskMap map[int64]*Task, a web.Auth, vi
 	}
 
 	err = addAttachmentsToTasks(s, taskIDs, taskMap)
+	if err != nil {
+		return
+	}
+
+	err = addOpenQuestionCountToTasks(s, taskIDs, taskMap)
 	if err != nil {
 		return
 	}
@@ -2394,6 +2402,11 @@ func hardDeleteTask(s *xorm.Session, t *Task) (err error) {
 
 	// Delete all comments
 	_, err = s.Where("task_id = ?", t.ID).Delete(&TaskComment{})
+	if err != nil {
+		return
+	}
+
+	_, err = s.Where("task_id = ?", t.ID).Delete(&TaskQuestion{})
 	if err != nil {
 		return
 	}

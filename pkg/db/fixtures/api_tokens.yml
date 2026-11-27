@@ -117,7 +117,7 @@
 - id: 12
   title: 'mcp access token 12 for user 1'
   token_sha256: 712e7aa42fe545bebdee529f9dff91f103b5a37ec1b864a4d88eacf52103139d
-  permissions: '{"mcp":["access"],"projects":["create","read_one","read_all","update","delete","users_search"],"tasks":["create","read_one","read_all","update","delete"],"labels":["create","read_one","read_all","update","delete"],"tasks_comments":["create","read_one","read_all","update","delete"],"tasks_assignees":["create","read_all","delete"],"tasks_labels":["create","read_all","delete"],"other":["users"],"projects_views":["read_all"]}'
+  permissions: '{"mcp":["access"],"projects":["create","read_one","read_all","update","delete","users_search"],"tasks":["create","read_one","read_all","update","delete","questions_answer"],"labels":["create","read_one","read_all","update","delete"],"tasks_comments":["create","read_one","read_all","update","delete"],"tasks_questions":["create","read_one","read_all","update","delete"],"tasks_assignees":["create","read_all","delete"],"tasks_labels":["create","read_all","delete"],"other":["users"],"projects_views":["read_all"]}'
   expires_at: 2099-01-01 00:00:00
   owner_id: 1
   created: 2024-01-01 00:00:00

@@ -213,6 +213,7 @@ func isStandardCRUDRoute(routeGroupName string, routeParts []string, _ string) b
 		"tasks_assignees":      true,
 		"tasks_labels":         true,
 		"tasks_comments":       true,
+		"tasks_questions":      true,
 		"tasks_relations":      true,
 		"teams_members":        true,
 		"projects_views_tasks": true,

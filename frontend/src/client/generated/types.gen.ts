@@ -1530,6 +1530,18 @@ export type PaginatedTaskComment = {
     total_pages?: number;
 };
 
+export type PaginatedTaskQuestion = {
+    /**
+     * A URL to the JSON Schema for this object.
+     */
+    readonly $schema?: string;
+    items?: Array<TaskQuestion> | null;
+    page?: number;
+    per_page?: number;
+    total?: number;
+    total_pages?: number;
+};
+
 export type PaginatedTeam = {
     /**
      * A URL to the JSON Schema for this object.
@@ -2432,6 +2444,10 @@ export type Task = {
      */
     readonly labels?: Array<Label> | null;
     /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
+     */
+    readonly open_question_count?: number;
+    /**
      * How far the task is from done, between 0 and 1.
      */
     percent_done?: number;
@@ -2677,6 +2693,201 @@ export type TaskPosition = {
     readonly task_id?: number;
 };
 
+export type TaskQuestion = {
+    /**
+     * A URL to the JSON Schema for this object.
+     */
+    readonly $schema?: string;
+    /**
+     * Optional comment that came with the answer.
+     */
+    readonly answer_notes?: string;
+    /**
+     * Key of the chosen option, empty when the answer is other or the question was deferred.
+     */
+    readonly answer_option?: string;
+    /**
+     * Free-text answer given instead of an option.
+     */
+    readonly answer_other?: string;
+    /**
+     * When the question was answered or deferred.
+     */
+    readonly answered_at?: string | null;
+    /**
+     * Who answered or deferred the question.
+     */
+    readonly answered_by?: User;
+    /**
+     * The user who asked the question. Set from the authenticated user on create.
+     */
+    readonly author?: User;
+    /**
+     * A timestamp when this question was created. You cannot change this value.
+     */
+    readonly created?: string;
+    /**
+     * Longer context as HTML, collapsed by default in the UI.
+     */
+    details?: string;
+    /**
+     * The unique, numeric id of this question.
+     */
+    readonly id?: number;
+    /**
+     * The choices. Keys must be unique and non-empty. A question without options can only be answered with other.
+     */
+    options?: Array<TaskQuestionOption> | null;
+    /**
+     * The option the asker recommends, with a reason.
+     */
+    recommendation?: TaskQuestionRecommendation;
+    /**
+     * open until answered or deferred through the answer endpoint. Updates may only set open (reopen) or cancelled.
+     */
+    status?: 'open' | 'answered' | 'deferred' | 'cancelled';
+    /**
+     * A short summary shown under the title.
+     */
+    summary?: string;
+    /**
+     * The task this question belongs to. Taken from the URL.
+     */
+    readonly task_id?: number;
+    /**
+     * The question, in one line.
+     */
+    title?: string;
+    /**
+     * A timestamp when this question was last changed. You cannot change this value.
+     */
+    readonly updated?: string;
+};
+
+export type TaskQuestionAnswer = {
+    /**
+     * A URL to the JSON Schema for this object.
+     */
+    readonly $schema?: string;
+    /**
+     * Defer the question instead of answering it. Exclusive with option and other.
+     */
+    defer?: boolean;
+    /**
+     * Optional comment, allowed with any answer and with defer.
+     */
+    notes?: string;
+    /**
+     * Key of the chosen option. Leave empty when answering with other or deferring.
+     */
+    option?: string;
+    /**
+     * Free-text answer instead of an option. Exclusive with option.
+     */
+    other?: string;
+};
+
+export type TaskQuestionOption = {
+    /**
+     * Optional longer explanation of the option.
+     */
+    description?: string;
+    /**
+     * Short, unique key of the option within the question, e.g. A, B, C. Answers refer to it.
+     */
+    key?: string;
+    /**
+     * One-line label shown on the option's button.
+     */
+    label?: string;
+};
+
+export type TaskQuestionReadBody = {
+    /**
+     * A URL to the JSON Schema for this object.
+     */
+    readonly $schema?: string;
+    /**
+     * Optional comment that came with the answer.
+     */
+    readonly answer_notes?: string;
+    /**
+     * Key of the chosen option, empty when the answer is other or the question was deferred.
+     */
+    readonly answer_option?: string;
+    /**
+     * Free-text answer given instead of an option.
+     */
+    readonly answer_other?: string;
+    /**
+     * When the question was answered or deferred.
+     */
+    readonly answered_at?: string | null;
+    /**
+     * Who answered or deferred the question.
+     */
+    readonly answered_by?: User;
+    /**
+     * The user who asked the question. Set from the authenticated user on create.
+     */
+    readonly author?: User;
+    /**
+     * A timestamp when this question was created. You cannot change this value.
+     */
+    readonly created?: string;
+    /**
+     * Longer context as HTML, collapsed by default in the UI.
+     */
+    details?: string;
+    /**
+     * The unique, numeric id of this question.
+     */
+    readonly id?: number;
+    /**
+     * The maximum permission the requesting user has on the question's task (0=read, 1=read/write, 2=admin). Answering needs read/write.
+     */
+    readonly max_permission?: number;
+    /**
+     * The choices. Keys must be unique and non-empty. A question without options can only be answered with other.
+     */
+    options?: Array<TaskQuestionOption> | null;
+    /**
+     * The option the asker recommends, with a reason.
+     */
+    recommendation?: TaskQuestionRecommendation;
+    /**
+     * open until answered or deferred through the answer endpoint. Updates may only set open (reopen) or cancelled.
+     */
+    status?: 'open' | 'answered' | 'deferred' | 'cancelled';
+    /**
+     * A short summary shown under the title.
+     */
+    summary?: string;
+    /**
+     * The task this question belongs to. Taken from the URL.
+     */
+    readonly task_id?: number;
+    /**
+     * The question, in one line.
+     */
+    title?: string;
+    /**
+     * A timestamp when this question was last changed. You cannot change this value.
+     */
+    readonly updated?: string;
+};
+
+export type TaskQuestionRecommendation = {
+    /**
+     * Key of the recommended option. Must be one of the question's option keys.
+     */
+    key?: string;
+    /**
+     * Why this option is recommended.
+     */
+    reason?: string;
+};
+
 export type TaskReadBodyBody = {
     /**
      * A URL to the JSON Schema for this object.
@@ -2777,6 +2988,10 @@ export type TaskReadOneBody = {
      * The maximum permission the requesting user has on this task (0=read, 1=read/write, 2=admin).
      */
     readonly max_permission?: number;
+    /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
+     */
+    readonly open_question_count?: number;
     /**
      * How far the task is from done, between 0 and 1.
      */
@@ -3493,6 +3708,10 @@ export type TrashedTask = {
      * The labels on this task. Read-only here; use the label-task endpoints to add or remove labels.
      */
     readonly labels?: Array<Label> | null;
+    /**
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
+     */
+    readonly open_question_count?: number;
     /**
      * How far the task is from done, between 0 and 1.
      */
@@ -4822,6 +5041,14 @@ export type PaginatedTaskCommentWritable = {
     total_pages?: number;
 };
 
+export type PaginatedTaskQuestionWritable = {
+    items?: Array<TaskQuestionWritable> | null;
+    page?: number;
+    per_page?: number;
+    total?: number;
+    total_pages?: number;
+};
+
 export type PaginatedTeamWritable = {
     items?: Array<TeamWritable> | null;
     page?: number;
@@ -5276,6 +5503,79 @@ export type TaskPositionWritable = {
      * The id of the project view this position applies to. Positions are stored per view, so the same task has an independent position in each of its project's views. A view of an ancestor project (except kanban) is accepted too, for tasks listed there through include_subprojects.
      */
     project_view_id?: number;
+};
+
+export type TaskQuestionWritable = {
+    /**
+     * Longer context as HTML, collapsed by default in the UI.
+     */
+    details?: string;
+    /**
+     * The choices. Keys must be unique and non-empty. A question without options can only be answered with other.
+     */
+    options?: Array<TaskQuestionOption> | null;
+    /**
+     * The option the asker recommends, with a reason.
+     */
+    recommendation?: TaskQuestionRecommendation;
+    /**
+     * open until answered or deferred through the answer endpoint. Updates may only set open (reopen) or cancelled.
+     */
+    status?: 'open' | 'answered' | 'deferred' | 'cancelled';
+    /**
+     * A short summary shown under the title.
+     */
+    summary?: string;
+    /**
+     * The question, in one line.
+     */
+    title?: string;
+};
+
+export type TaskQuestionAnswerWritable = {
+    /**
+     * Defer the question instead of answering it. Exclusive with option and other.
+     */
+    defer?: boolean;
+    /**
+     * Optional comment, allowed with any answer and with defer.
+     */
+    notes?: string;
+    /**
+     * Key of the chosen option. Leave empty when answering with other or deferring.
+     */
+    option?: string;
+    /**
+     * Free-text answer instead of an option. Exclusive with option.
+     */
+    other?: string;
+};
+
+export type TaskQuestionReadBodyWritable = {
+    /**
+     * Longer context as HTML, collapsed by default in the UI.
+     */
+    details?: string;
+    /**
+     * The choices. Keys must be unique and non-empty. A question without options can only be answered with other.
+     */
+    options?: Array<TaskQuestionOption> | null;
+    /**
+     * The option the asker recommends, with a reason.
+     */
+    recommendation?: TaskQuestionRecommendation;
+    /**
+     * open until answered or deferred through the answer endpoint. Updates may only set open (reopen) or cancelled.
+     */
+    status?: 'open' | 'answered' | 'deferred' | 'cancelled';
+    /**
+     * A short summary shown under the title.
+     */
+    summary?: string;
+    /**
+     * The question, in one line.
+     */
+    title?: string;
 };
 
 export type TaskReadOneBodyWritable = {
@@ -11024,6 +11324,235 @@ export type TasksPositionUpdateResponses = {
 };
 
 export type TasksPositionUpdateResponse = TasksPositionUpdateResponses[keyof TasksPositionUpdateResponses];
+
+export type TaskQuestionsListData = {
+    body?: never;
+    path: {
+        task: number;
+    };
+    query?: {
+        /**
+         * Only return questions in this state.
+         */
+        status?: 'open' | 'answered' | 'deferred' | 'cancelled';
+        /**
+         * 1-based page number.
+         */
+        page?: number;
+        /**
+         * Items per page. Defaults to the instance's configured maximum (service.maxitemsperpage, reported as max_items_per_page by /info) and is silently capped at it; asking for more is not an error.
+         */
+        per_page?: number;
+        /**
+         * Search query; filters the list to items matching this string.
+         */
+        q?: string;
+    };
+    url: '/tasks/{task}/questions';
+};
+
+export type TaskQuestionsListErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsListError = TaskQuestionsListErrors[keyof TaskQuestionsListErrors];
+
+export type TaskQuestionsListResponses = {
+    /**
+     * OK
+     */
+    200: PaginatedTaskQuestion;
+};
+
+export type TaskQuestionsListResponse = TaskQuestionsListResponses[keyof TaskQuestionsListResponses];
+
+export type TaskQuestionsCreateData = {
+    body: TaskQuestionWritable;
+    path: {
+        task: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions';
+};
+
+export type TaskQuestionsCreateErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsCreateError = TaskQuestionsCreateErrors[keyof TaskQuestionsCreateErrors];
+
+export type TaskQuestionsCreateResponses = {
+    /**
+     * Created
+     */
+    201: TaskQuestion;
+};
+
+export type TaskQuestionsCreateResponse = TaskQuestionsCreateResponses[keyof TaskQuestionsCreateResponses];
+
+export type TaskQuestionsDeleteData = {
+    body?: never;
+    path: {
+        task: number;
+        question: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions/{question}';
+};
+
+export type TaskQuestionsDeleteErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsDeleteError = TaskQuestionsDeleteErrors[keyof TaskQuestionsDeleteErrors];
+
+export type TaskQuestionsDeleteResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type TaskQuestionsDeleteResponse = TaskQuestionsDeleteResponses[keyof TaskQuestionsDeleteResponses];
+
+export type TaskQuestionsReadData = {
+    body?: never;
+    headers?: {
+        /**
+         * Succeeds if the server's resource matches one of the passed values.
+         */
+        'If-Match'?: Array<string> | null;
+        /**
+         * Succeeds if the server's resource matches none of the passed values. On writes, the special value * may be used to match any existing value.
+         */
+        'If-None-Match'?: Array<string> | null;
+        /**
+         * Succeeds if the server's resource date is more recent than the passed date.
+         */
+        'If-Modified-Since'?: string;
+        /**
+         * Succeeds if the server's resource date is older or the same as the passed date.
+         */
+        'If-Unmodified-Since'?: string;
+    };
+    path: {
+        task: number;
+        question: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions/{question}';
+};
+
+export type TaskQuestionsReadErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsReadError = TaskQuestionsReadErrors[keyof TaskQuestionsReadErrors];
+
+export type TaskQuestionsReadResponses = {
+    /**
+     * OK
+     */
+    200: TaskQuestionReadBody;
+};
+
+export type TaskQuestionsReadResponse = TaskQuestionsReadResponses[keyof TaskQuestionsReadResponses];
+
+export type PatchTaskQuestionsReadData = {
+    body: Array<JsonPatchOp> | null;
+    path: {
+        task: number;
+        question: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions/{question}';
+};
+
+export type PatchTaskQuestionsReadErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type PatchTaskQuestionsReadError = PatchTaskQuestionsReadErrors[keyof PatchTaskQuestionsReadErrors];
+
+export type PatchTaskQuestionsReadResponses = {
+    /**
+     * OK
+     */
+    200: TaskQuestion;
+};
+
+export type PatchTaskQuestionsReadResponse = PatchTaskQuestionsReadResponses[keyof PatchTaskQuestionsReadResponses];
+
+export type TaskQuestionsUpdateData = {
+    body: TaskQuestionReadBodyWritable;
+    path: {
+        task: number;
+        question: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions/{question}';
+};
+
+export type TaskQuestionsUpdateErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsUpdateError = TaskQuestionsUpdateErrors[keyof TaskQuestionsUpdateErrors];
+
+export type TaskQuestionsUpdateResponses = {
+    /**
+     * OK
+     */
+    200: TaskQuestion;
+};
+
+export type TaskQuestionsUpdateResponse = TaskQuestionsUpdateResponses[keyof TaskQuestionsUpdateResponses];
+
+export type TaskQuestionsAnswerData = {
+    body: TaskQuestionAnswerWritable;
+    path: {
+        task: number;
+        question: number;
+    };
+    query?: never;
+    url: '/tasks/{task}/questions/{question}/answer';
+};
+
+export type TaskQuestionsAnswerErrors = {
+    /**
+     * Error
+     */
+    default: VikunjaErrorModel;
+};
+
+export type TaskQuestionsAnswerError = TaskQuestionsAnswerErrors[keyof TaskQuestionsAnswerErrors];
+
+export type TaskQuestionsAnswerResponses = {
+    /**
+     * OK
+     */
+    200: TaskQuestion;
+};
+
+export type TaskQuestionsAnswerResponse = TaskQuestionsAnswerResponses[keyof TaskQuestionsAnswerResponses];
 
 export type TasksMarkReadData = {
     body?: never;

@@ -103,15 +103,16 @@ func TestTaskCollection_ReadAll(t *testing.T) {
 
 	// We use individual variables for the tasks here to be able to rearrange or remove ones more easily
 	task1 := &Task{
-		ID:          1,
-		Title:       "task #1",
-		Description: "Lorem Ipsum",
-		Identifier:  "TEST1-1",
-		Index:       1,
-		CreatedByID: 1,
-		CreatedBy:   user1,
-		ProjectID:   1,
-		IsFavorite:  true,
+		ID:                1,
+		OpenQuestionCount: 1,
+		Title:             "task #1",
+		Description:       "Lorem Ipsum",
+		Identifier:        "TEST1-1",
+		Index:             1,
+		CreatedByID:       1,
+		CreatedBy:         user1,
+		ProjectID:         1,
+		IsFavorite:        true,
 		Labels: []*Label{
 			label4,
 		},
@@ -584,16 +585,17 @@ func TestTaskCollection_ReadAll(t *testing.T) {
 		Updated:      time.Unix(1543626724, 0).In(loc),
 	}
 	task32 := &Task{
-		ID:           32,
-		Title:        "task #32",
-		Identifier:   "TEST3-1",
-		Index:        1,
-		CreatedByID:  1,
-		CreatedBy:    user1,
-		ProjectID:    3,
-		RelatedTasks: map[RelationKind][]*Task{},
-		Created:      time.Unix(1543626724, 0).In(loc),
-		Updated:      time.Unix(1543626724, 0).In(loc),
+		ID:                32,
+		OpenQuestionCount: 1,
+		Title:             "task #32",
+		Identifier:        "TEST3-1",
+		Index:             1,
+		CreatedByID:       1,
+		CreatedBy:         user1,
+		ProjectID:         3,
+		RelatedTasks:      map[RelationKind][]*Task{},
+		Created:           time.Unix(1543626724, 0).In(loc),
+		Updated:           time.Unix(1543626724, 0).In(loc),
 	}
 	task33 := &Task{
 		ID:           33,
