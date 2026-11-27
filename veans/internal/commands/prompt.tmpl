@@ -189,6 +189,7 @@ veans update {{ .TaskIDExample }} --label-add bug --label-remove flaky
 veans update {{ .TaskIDExample }} -s scrapped --reason "obsolete: replaced by {{ .TaskIDExample }}"
 
 veans claim {{ .TaskIDExample }}                 # assign yourself + In Progress + branch label
+veans attach {{ .TaskIDExample }} dist/app.zip    # upload file(s) as task attachments (JSON: ids + names)
 veans api GET /tasks/...           # escape hatch for raw REST when curated cmds don't fit
 ```
 

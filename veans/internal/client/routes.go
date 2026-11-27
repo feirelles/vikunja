@@ -65,6 +65,8 @@ func PermissionsForBot(routes map[string]RouteGroup) map[string][]string {
 		"tasks_relations": {"create", "delete"},
 		"tasks_assignees": {"read_all", "create", "delete", "update_bulk"},
 		"tasks_labels":    {"create", "delete", "read_all", "update_bulk"},
+		// veans attach uploads files; delete lets an agent undo a wrong upload.
+		"tasks_attachments": {"read_one", "read_all", "create", "delete"},
 	}
 	out := map[string][]string{}
 	for group, actions := range wanted {

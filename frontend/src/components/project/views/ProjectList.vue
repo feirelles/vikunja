@@ -126,6 +126,7 @@ import {isSavedFilterProject} from '@/client/queries/projects'
 import {useBaseStore} from '@/stores/base'
 import {useTaskDragState} from '@/composables/useTaskDragState'
 import {useDelayedLoading} from '@/composables/useDelayedLoading'
+import {useProjectLiveUpdates} from '@/composables/useProjectLiveUpdates'
 
 
 const props = defineProps<{
@@ -141,6 +142,7 @@ const draggable = draggableFor<TaskResponse>()
 const taskDragGroup = {name: 'tasks', put: false}
 
 const projectId = toRef(props, 'projectId')
+useProjectLiveUpdates(projectId)
 
 defineOptions({name: 'List'})
 

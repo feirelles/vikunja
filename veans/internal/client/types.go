@@ -210,6 +210,7 @@ type Info struct {
 	Version             string `json:"version"`
 	FrontendURL         string `json:"frontend_url"`
 	MOTD                string `json:"motd,omitempty"`
+	MaxFileSize         string `json:"max_file_size"`
 	LinkSharingEnabled  bool   `json:"link_sharing_enabled"`
 	RegistrationEnabled bool   `json:"registration_enabled"`
 	Auth                struct {

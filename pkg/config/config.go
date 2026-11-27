@@ -773,6 +773,10 @@ func anchorPathsToRootpath() {
 	PluginsDir.Set(ResolvePath(PluginsDir.GetString()))
 }
 
+// systemConfigDir is the system-wide config search path. Tests point it at an
+// empty directory so they never read the host's config.
+var systemConfigDir = "/etc/vikunja/"
+
 // InitConfig initializes the config, sets defaults etc.
 func InitConfig() {
 
@@ -791,7 +795,7 @@ func InitConfig() {
 		viper.SetConfigFile(configFileOverride)
 	} else {
 		viper.AddConfigPath(ServiceRootpath.GetString())
-		viper.AddConfigPath("/etc/vikunja/")
+		viper.AddConfigPath(systemConfigDir)
 
 		homeDir, err := os.UserHomeDir()
 		if err != nil {

@@ -328,3 +328,20 @@ func TestListProjectViews_UnwrapsEnvelope(t *testing.T) {
 		t.Fatalf("expected one kanban view unwrapped from .items, got %+v", views)
 	}
 }
+
+func TestParseFileSize(t *testing.T) {
+	for in, want := range map[string]int64{
+		"20MB": 20 << 20, "20mb": 20 << 20, "1KB": 1024, "512": 512,
+		"2GB": 2 << 30, "5 MB": 5 << 20, "3m": 3 << 20,
+	} {
+		got, err := ParseFileSize(in)
+		if err != nil || got != want {
+			t.Errorf("ParseFileSize(%q) = %d, %v; want %d", in, got, err, want)
+		}
+	}
+	for _, bad := range []string{"", "MB", "20XB", "-1MB"} {
+		if _, err := ParseFileSize(bad); err == nil {
+			t.Errorf("ParseFileSize(%q) should fail", bad)
+		}
+	}
+}

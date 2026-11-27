@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHubRegisterUnregister(t *testing.T) {
@@ -82,4 +83,121 @@ func TestHubPublishSkipsOtherUsers(t *testing.T) {
 	h.PublishForUser(1, "notification.created", map[string]string{"id": "1"})
 
 	assert.Empty(t, conn.send)
+}
+
+func projectConn(userID int64) *Connection {
+	return &Connection{
+		userID:        userID,
+		authenticated: true,
+		subscriptions: make(map[string]bool),
+		projects:      make(map[int64]bool),
+		send:          make(chan OutgoingMessage, 16),
+	}
+}
+
+func TestHubProjectSubscriptions(t *testing.T) {
+	t.Run("publishes to connections subscribed to the project", func(t *testing.T) {
+		h := NewHub()
+		subscribed := projectConn(1)
+		other := projectConn(2)
+		h.Register(subscribed)
+		h.Register(other)
+		h.SubscribeProject(subscribed, 7)
+
+		h.PublishForProject(7, "task.updated", &ProjectTaskEvent{ProjectID: 7, TaskID: 3}, nil)
+
+		msg := <-subscribed.send
+		assert.Equal(t, "task.updated", msg.Event)
+		assert.Equal(t, int64(3), msg.Data.(*ProjectTaskEvent).TaskID)
+		assert.Empty(t, other.send)
+		assert.True(t, subscribed.IsSubscribedToProject(7))
+	})
+
+	t.Run("skips a connection after it unsubscribed", func(t *testing.T) {
+		h := NewHub()
+		conn := projectConn(1)
+		h.Register(conn)
+		h.SubscribeProject(conn, 7)
+		h.UnsubscribeProject(conn, 7)
+
+		h.PublishForProject(7, "task.updated", nil, nil)
+
+		assert.Empty(t, conn.send)
+		assert.False(t, conn.IsSubscribedToProject(7))
+		_, indexed := h.projects[7]
+		assert.False(t, indexed, "an empty project entry must be removed")
+	})
+
+	t.Run("delivers a move once to a connection subscribed to both projects", func(t *testing.T) {
+		h := NewHub()
+		both := projectConn(1)
+		oldOnly := projectConn(2)
+		h.Register(both)
+		h.Register(oldOnly)
+		h.SubscribeProject(both, 7)
+		h.SubscribeProject(both, 8)
+		h.SubscribeProject(oldOnly, 8)
+
+		h.PublishForProjects([]int64{7, 8}, "task.updated", nil, nil)
+
+		assert.Len(t, both.send, 1)
+		assert.Len(t, oldOnly.send, 1)
+	})
+
+	t.Run("drops the subscription of a user the check rejects and tells the connection", func(t *testing.T) {
+		h := NewHub()
+		revoked := projectConn(1)
+		allowed := projectConn(2)
+		h.Register(revoked)
+		h.Register(allowed)
+		h.SubscribeProject(revoked, 7)
+		h.SubscribeProject(allowed, 7)
+
+		h.PublishForProject(7, "task.updated", nil, func(userID, _ int64) bool {
+			return userID != 1
+		})
+
+		require.Len(t, revoked.send, 1)
+		msg := <-revoked.send
+		assert.Equal(t, ActionUnsubscribed, msg.Action)
+		assert.Equal(t, EventProject, msg.Event)
+		assert.Equal(t, int64(7), msg.ProjectID)
+		assert.Equal(t, ReasonForbidden, msg.Reason)
+		assert.False(t, revoked.IsSubscribedToProject(7))
+		require.Len(t, allowed.send, 1)
+		assert.Equal(t, "task.updated", (<-allowed.send).Event)
+	})
+
+	t.Run("asks the check once per user and project", func(t *testing.T) {
+		h := NewHub()
+		first := projectConn(1)
+		second := projectConn(1)
+		h.Register(first)
+		h.Register(second)
+		h.SubscribeProject(first, 7)
+		h.SubscribeProject(second, 7)
+
+		calls := 0
+		h.PublishForProject(7, "task.updated", nil, func(_, _ int64) bool {
+			calls++
+			return true
+		})
+
+		assert.Equal(t, 1, calls)
+		assert.Len(t, first.send, 1)
+		assert.Len(t, second.send, 1)
+	})
+
+	t.Run("unregister clears the project index", func(t *testing.T) {
+		h := NewHub()
+		conn := projectConn(1)
+		h.Register(conn)
+		h.SubscribeProject(conn, 7)
+
+		h.Unregister(conn)
+
+		assert.Empty(t, h.projects)
+		h.PublishForProject(7, "task.updated", nil, nil)
+		assert.Empty(t, conn.send)
+	})
 }

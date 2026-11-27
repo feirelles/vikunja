@@ -14,6 +14,7 @@ import {
 	insertTaskIntoBoards,
 	invalidateTaskMembership,
 	mapTaskEverywhere,
+	placeTaskInBoards,
 	replaceTaskEverywhere,
 	removeTaskEverywhere,
 	removeTaskFromBoard,
@@ -241,5 +242,105 @@ describe('task cache reconciliation', () => {
 				ids: [9],
 			},
 		])
+	})
+})
+
+describe('placeTaskInBoards', () => {
+	function boardWith(client: QueryClient, tasks: {id: number, position: number}[], count = tasks.length) {
+		const board = kanbanKeys.board(1, 2)
+		client.setQueryData(projectKeys.detail(1), {
+			id: 1,
+			views: [{
+				id: 2,
+				bucket_configuration_mode: 'manual',
+				default_bucket_id: 3,
+				done_bucket_id: 4,
+			}],
+		})
+		client.setQueryData(board, {
+			buckets: [
+				normalizeBucket({
+					id: 3,
+					count,
+					tasks: tasks.map(task => ({...task, project_id: 1, bucket_id: 3})),
+				}),
+				normalizeBucket({
+					id: 4,
+					count: 0,
+					tasks: [],
+				}),
+			],
+			pages: {
+				3: 1,
+				4: 1,
+			},
+		})
+		return board
+	}
+	const shape = (client: QueryClient, board: ReturnType<typeof kanbanKeys.board>) =>
+		client.getQueryData<BoardData>(board)?.buckets.map(bucket => ({
+			count: bucket.count,
+			tasks: bucket.tasks.map(task => [task.id, task.position]),
+		}))
+
+	it('moves a loaded card to the stored bucket at its stored position', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 9, position: 100}, {id: 1, position: 200}])
+		placeTaskInBoards(client, {id: 9, project_id: 1}, [{project_view_id: 2, bucket_id: 4, position: 50}], false)
+		expect(shape(client, board)).toEqual([
+			{count: 1, tasks: [[1, 200]]},
+			{count: 1, tasks: [[9, 50]]},
+		])
+	})
+
+	it('reorders a card within its bucket', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 9, position: 100}, {id: 1, position: 200}, {id: 2, position: 300}])
+		placeTaskInBoards(client, {id: 9, project_id: 1}, [{project_view_id: 2, bucket_id: 3, position: 250}], false)
+		expect(shape(client, board)).toEqual([
+			{count: 3, tasks: [[1, 200], [9, 250], [2, 300]]},
+			{count: 0, tasks: []},
+		])
+	})
+
+	it('inserts an absent card only where it falls among the loaded page', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 1, position: 100}, {id: 2, position: 200}], 30)
+		placeTaskInBoards(client, {id: 8, project_id: 1}, [{project_view_id: 2, bucket_id: 3, position: 300}], true)
+		expect(shape(client, board)).toEqual([
+			{count: 31, tasks: [[1, 100], [2, 200]]},
+			{count: 0, tasks: []},
+		])
+		placeTaskInBoards(client, {id: 9, project_id: 1}, [{project_view_id: 2, bucket_id: 3, position: 150}], true)
+		expect(shape(client, board)).toEqual([
+			{count: 32, tasks: [[1, 100], [9, 150], [2, 200]]},
+			{count: 0, tasks: []},
+		])
+	})
+
+	it('leaves the count alone for an updated card that lives on a page not loaded', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 1, position: 100}], 30)
+		const before = client.getQueryState(board)?.dataUpdateCount
+		placeTaskInBoards(client, {id: 8, project_id: 1}, [{project_view_id: 2, bucket_id: 3, position: 300}], false)
+		expect(client.getQueryState(board)?.dataUpdateCount).toBe(before)
+	})
+
+	it('falls back to the view rules when the view has no stored row', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 1, position: 100}])
+		placeTaskInBoards(client, {id: 9, project_id: 1, done: true}, [], true)
+		expect(shape(client, board)?.[1]).toEqual({count: 1, tasks: [[9, 50]]})
+		placeTaskInBoards(client, {id: 8, project_id: 1}, [{project_view_id: 7, bucket_id: 99}], true)
+		// The done card now holds the lowest position, so the new one goes above it.
+		expect(shape(client, board)?.[0]).toEqual({count: 2, tasks: [[8, 25], [1, 100]]})
+	})
+
+	it('ignores boards of other projects', () => {
+		const client = new QueryClient()
+		const board = boardWith(client, [{id: 1, position: 100}])
+		const before = client.getQueryState(board)?.dataUpdateCount
+		placeTaskInBoards(client, {id: 9, project_id: 2}, [{project_view_id: 2, bucket_id: 3, position: 50}], true)
+		expect(client.getQueryState(board)?.dataUpdateCount).toBe(before)
 	})
 })

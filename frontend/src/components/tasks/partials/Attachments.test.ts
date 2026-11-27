@@ -1,6 +1,6 @@
 import {describe, it, expect, vi, afterEach} from 'vitest'
 import {defineComponent, h, nextTick} from 'vue'
-import {createPinia} from 'pinia'
+import {createPinia, setActivePinia} from 'pinia'
 import {mount, flushPromises, type VueWrapper} from '@vue/test-utils'
 import {QueryClient, useQuery, VueQueryPlugin} from '@tanstack/vue-query'
 import Modal from '@/components/misc/Modal.vue'
@@ -30,6 +30,7 @@ vi.mock('@/message', () => ({error: errorMessage, success: vi.fn()}))
 
 import {normalizeTask, taskKeys, taskQuery} from '@/client/queries/tasks'
 import Attachments from './Attachments.vue'
+import {useConfigStore} from '@/stores/config'
 
 const attachment = {
 	id: 1,
@@ -54,7 +55,12 @@ const TaskHost = defineComponent({
 	},
 })
 
-function mountAttachments() {
+function mountAttachments({maxFileSize}: {maxFileSize?: string} = {}) {
+	const pinia = createPinia()
+	setActivePinia(pinia)
+	if (maxFileSize !== undefined) {
+		useConfigStore().max_file_size = maxFileSize
+	}
 	const queryClient = new QueryClient({defaultOptions: {queries: {
 		retry: false,
 		staleTime: Infinity,
@@ -64,7 +70,7 @@ function mountAttachments() {
 	const wrapper = mount(TaskHost, {
 		attachTo: document.body,
 		global: {
-			plugins: [createPinia(), [VueQueryPlugin, {queryClient}]],
+			plugins: [pinia, [VueQueryPlugin, {queryClient}]],
 			components: {XButton, BaseButton, Modal},
 			stubs: {
 				Icon: true,
@@ -167,6 +173,48 @@ describe('Attachments download', () => {
 })
 
 describe('Attachments upload', () => {
+	it('refuses files above max_file_size before uploading and uploads the rest', async () => {
+		sdk.taskAttachmentsUpload.mockResolvedValue({data: {success: []}})
+
+		const wrapper = mountAttachments({maxFileSize: '1KB'})
+		await flushPromises()
+
+		const small = new File(['y'], 'small.png', {type: 'image/png'})
+		await pickFiles(wrapper, [
+			new File([new Uint8Array(2048)], 'big.zip', {type: 'application/zip'}),
+			small,
+		])
+
+		expect(sdk.taskAttachmentsUpload).toHaveBeenCalledTimes(1)
+		expect(sdk.taskAttachmentsUpload.mock.calls[0][0].body.files).toEqual([small])
+		expect(errorMessage).toHaveBeenCalledTimes(1)
+		expect(errorMessage.mock.calls[0][0]).toBeInstanceOf(Error)
+		expect(errorMessage.mock.calls[0][0].message).toBe('task.attachment.tooLarge')
+	})
+
+	it('does not start an upload when every file is too large', async () => {
+		const wrapper = mountAttachments({maxFileSize: '1KB'})
+		await flushPromises()
+
+		await pickFiles(wrapper, [new File([new Uint8Array(2048)], 'big.zip', {type: 'application/zip'})])
+
+		expect(sdk.taskAttachmentsUpload).not.toHaveBeenCalled()
+		expect(wrapper.find('progress').exists()).toBe(false)
+		expect(errorMessage).toHaveBeenCalledTimes(1)
+	})
+
+	it('uploads everything when max_file_size cannot be parsed', async () => {
+		sdk.taskAttachmentsUpload.mockResolvedValue({data: {success: []}})
+
+		const wrapper = mountAttachments({maxFileSize: 'unknown'})
+		await flushPromises()
+
+		await pickFiles(wrapper, [new File([new Uint8Array(2048)], 'big.zip', {type: 'application/zip'})])
+
+		expect(sdk.taskAttachmentsUpload).toHaveBeenCalledTimes(1)
+		expect(errorMessage).not.toHaveBeenCalled()
+	})
+
 	it('uploads the remaining files after one request fails', async () => {
 		sdk.taskAttachmentsUpload
 			.mockRejectedValueOnce(new Error('413 Payload Too Large'))
