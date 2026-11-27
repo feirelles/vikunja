@@ -46,7 +46,8 @@ func TestRelate_DerivedTaskInOneCommand(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("create derived exit %d\n%s\n%s", code, out, stderr)
 	}
-	if !strings.Contains(out, " created · Todo · ") || strings.Count(out, "\n") != 1 {
+	// The bucket part is the board's own title (Vikunja's default "To-Do").
+	if !strings.Contains(out, " created · To-Do · ") || strings.Count(out, "\n") != 1 {
 		t.Fatalf("short create output: %q", out)
 	}
 	derivedRef := strings.Fields(out)[0]
@@ -80,7 +81,7 @@ func TestRelate_DerivedTaskInOneCommand(t *testing.T) {
 	}
 
 	out, _, code = h.Run(t, ws, "update", derivedRef, "--md", "-c", "Note with `code`", "-s", "in-progress")
-	if code != 0 || !strings.HasPrefix(out, derivedRef+" updated (status, comment) · In Progress · ") {
+	if code != 0 || !strings.HasPrefix(out, derivedRef+" updated (status, comment) · Doing · ") {
 		t.Fatalf("update exit %d: %q", code, out)
 	}
 }
