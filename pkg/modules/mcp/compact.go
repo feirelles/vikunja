@@ -34,10 +34,15 @@ const (
 	compactWrite
 )
 
-// richTextFields are echoed back by writes and can be long; writes drop them and lists truncate them.
+// richTextFields are echoed back by writes and can be long, so writes drop them.
 var richTextFields = map[string]bool{
 	"description": true,
 	"comment":     true,
+}
+
+// Lists cut descriptions short. A comment is what a comment list is read for, so it stays whole.
+var listTruncatedFields = map[string]bool{
+	"description": true,
 }
 
 // compactTaskFields is the summary of a task in compact responses.
@@ -95,8 +100,12 @@ func compactObject(obj map[string]any, mode compactMode) map[string]any {
 				out[k] = x
 				continue
 			}
-			if mode == compactList {
+			switch {
+			case mode != compactList:
+			case listTruncatedFields[k]:
 				out[k] = truncate(x, listRichTextLimit)
+			default:
+				out[k] = x
 			}
 		default:
 			out[k] = val

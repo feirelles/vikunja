@@ -89,7 +89,7 @@ func fieldsSchema() *jsonschema.Schema {
 		Type:        "array",
 		Items:       &jsonschema.Schema{Type: "string", MinLength: &one},
 		MinItems:    &one,
-		Description: `Return only these response fields. Dot paths select nested fields, also inside arrays (e.g. ["id", "title", "labels.title"]). ["*"] returns the full response. Omitted, list and write tools return a compact summary (a task: id, identifier, title, done, project_id, bucket_id, due_date, labels.title; writes leave out descriptions and comments, lists cut them to 200 characters) and single reads return the full object.`,
+		Description: `Return only these response fields. Dot paths select nested fields, also inside arrays (e.g. ["id", "title", "labels.title"]). ["*"] returns the full response. Omitted, list and write tools return a compact summary (a task: id, identifier, title, done, project_id, bucket_id, due_date, labels.title; writes leave out descriptions and comments, lists cut descriptions to 200 characters) and single reads return the full object.`,
 	}
 }
 

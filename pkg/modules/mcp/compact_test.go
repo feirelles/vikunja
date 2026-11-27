@@ -94,8 +94,12 @@ func TestCompactValue_RichText(t *testing.T) {
 	assert.NotContains(t, written, "comment")
 	assert.Equal(t, map[string]any{"id": 1, "username": "u", "name": "U"}, written["author"])
 
+	// A listed comment stays whole; only descriptions are cut.
 	listed := compactValue(comment, compactList).(map[string]any)
-	assert.Equal(t, strings.Repeat("é", listRichTextLimit)+"…", listed["comment"])
+	assert.Equal(t, long, listed["comment"])
+
+	project := compactValue(map[string]any{"id": 1, "description": long}, compactList).(map[string]any)
+	assert.Equal(t, strings.Repeat("é", listRichTextLimit)+"…", project["description"])
 
 	short := compactValue(map[string]any{"description": "short"}, compactList).(map[string]any)
 	assert.Equal(t, "short", short["description"])
