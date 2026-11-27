@@ -56,9 +56,15 @@ test('a question asked over the API is answered in the task detail', async ({aut
 	await expect(questions.locator('.question-option.is-recommended')).toContainText('S3')
 	await expect(questions.locator('.answered-line')).toContainText('uploads')
 	await page.screenshot({path: testInfo.outputPath('detail-1400.png'), fullPage: true})
+	// Reload at the narrow width so the layout starts in its mobile state (menu closed).
 	await page.setViewportSize({width: 400, height: 900})
-	await page.screenshot({path: testInfo.outputPath('detail-400.png'), fullPage: true})
+	await page.reload()
+	await expect(questions.locator('.task-question')).toHaveCount(3)
+	await questions.scrollIntoViewIfNeeded()
+	await page.screenshot({path: testInfo.outputPath('detail-400.png')})
 	await page.setViewportSize({width: 1400, height: 900})
+	await page.reload()
+	await expect(questions.locator('.task-question')).toHaveCount(3)
 
 	const first = questions.locator('.task-question').filter({hasText: 'Where should uploads go?'})
 	await first.locator('textarea').fill('S3 bucket in the homelab MinIO')
