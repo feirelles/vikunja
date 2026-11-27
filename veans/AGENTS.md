@@ -100,10 +100,9 @@ oddly, suspect one of these:
 - **Task descriptions and comments are HTML, not markdown.** The
   Vikunja web UI uses TipTap, which calls `getHTML()` on save. The
   stored field is therefore HTML. The agent prompt template
-  (`internal/commands/prompt.tmpl`) teaches agents the canonical
-  TipTap shapes — most importantly `<ul data-type="taskList">` +
-  `<li data-type="taskItem" data-checked="false"><p>…</p></li>` for
-  interactive checkboxes. We deliberately do **not** convert
+  (`internal/commands/prompt.tmpl`) only says they are HTML; TipTap's
+  interactive checkboxes are `<ul data-type="taskList">` +
+  `<li data-type="taskItem" data-checked="false"><p>…</p></li>`. We deliberately do **not** convert
   markdown↔HTML in the CLI; the agent writes HTML directly, which
   avoids lossy roundtrips on `--description-replace-old/new`. `veans
   show` displays the raw HTML; humans skim it fine.
@@ -218,9 +217,14 @@ one-off setup:
 Everything else (`list`, `show`, `create`, `update`, `claim`, `api`,
 `prime`, `version`) is **agent-only**:
 
-- **Emits JSON on stdout unconditionally.** No `--json` flag, no
-  human-formatted variant. `list` is a raw array; `show` / `create` /
-  `update` / `claim` return a single task object.
+- **Output is short by default; `--json` gives the full object.** The
+  agent pays for every byte in its context. `create` / `update` / `claim`
+  print one line (`VKJ-6 claimed · In Progress · <url>`, see
+  `writeTaskLine`); `show` prints the compact `taskSummary` (with
+  description, `--fields` picks keys); `list` prints an array of summaries
+  without descriptions (`[]` when empty). The persistent root `--json` flag
+  restores the full `client.Task` everywhere. `attach` and `api` always
+  emit JSON. Keep the line format stable: scripts and agents grep it.
 - **Errors are JSON on stderr** with non-zero exit — same envelope
   everywhere (`{"code": "...", "error": "..."}`), regardless of which
   command ran. Stable codes in `internal/output/errors.go`:
@@ -228,7 +232,8 @@ Everything else (`list`, `show`, `create`, `update`, `claim`, `api`,
   `RATE_LIMITED`, `BOT_USERS_UNAVAILABLE`, `NOT_CONFIGURED`,
   `UNKNOWN`. Don't add ad-hoc strings — wrap with `output.New` /
   `output.Wrap`.
-- **No `globals.JSON`, no dual rendering paths.** If you find yourself
+- **No human-formatted or TTY-dependent variants.** `--json` is the only
+  output switch, and it is explicit. If you find yourself
   reaching for "if interactive, do X" on an agent-facing command,
   stop — it's not interactive, an agent is on the other end.
 
@@ -240,9 +245,13 @@ Everything else (`list`, `show`, `create`, `update`, `claim`, `api`,
   update on `update`, so a status transition can't clobber freshly
   attached labels. Comments for `--status scrapped` post **before**
   the bucket move so the audit trail reads in chronological order.
-- Agent-facing commands return the task via `json.NewEncoder(...).Encode(task)`.
-  Adding new top-level keys to `client.Task` is an implicit API
-  change — bump `prime`'s "useful fields" note alongside.
+- Agent-facing commands return the task through `runtime.emitTask` (write
+  commands) or `summarize` / `selectFields` (show, list). Adding keys to
+  `taskSummary` or `client.Task` is an API change for `--json` and
+  `--fields` callers.
+- `prime` must stay under 2,000 bytes (`TestPrimeTemplate_UnderTwoKilobytes`):
+  it is loaded in every session and again on every compaction. No emphasis
+  tags, no tutorials; one line per command of the task cycle.
 
 ## Things to *not* do
 

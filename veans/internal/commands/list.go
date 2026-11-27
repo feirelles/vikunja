@@ -53,7 +53,10 @@ Filters can be combined; they're AND-ed together:
   --filter <expr>  raw Vikunja filter expression (see Vikunja docs); applied
                    server-side
   --status <s>     filter by status (todo|in-progress|in-review|completed|scrapped),
-                   may be repeated`,
+                   may be repeated
+
+Prints a JSON array of compact summaries (id, identifier, title, status, done,
+priority, labels, assignees, url; no description). --json prints full tasks.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			rt, err := loadRuntime(cmd.Context())
 			if err != nil {
@@ -64,7 +67,14 @@ Filters can be combined; they're AND-ed together:
 				return err
 			}
 			rt.withURLs(tasks...)
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(tasks)
+			if wantJSON(cmd) {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(tasks)
+			}
+			out := make([]*taskSummary, 0, len(tasks))
+			for _, t := range tasks {
+				out = append(out, rt.summarize(t, false))
+			}
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(out)
 		},
 	}
 	cmd.Flags().BoolVar(&f.ready, "ready", false, "only ready-to-start tasks (Todo bucket, not done)")

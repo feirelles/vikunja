@@ -18,7 +18,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -58,7 +57,7 @@ removed, so re-running claim with the right branch fixes a wrong label.`,
 			if !explicit {
 				branch = currentGitBranch(cmd.Context())
 			}
-			return runClaim(cmd.Context(), rt, cmd.OutOrStdout(), args[0], branch, explicit)
+			return runClaim(cmd.Context(), rt, cmd.OutOrStdout(), args[0], branch, explicit, wantJSON(cmd))
 		},
 	}
 	cmd.Flags().StringVar(&branchFlag, "branch", "",
@@ -71,7 +70,7 @@ removed, so re-running claim with the right branch fixes a wrong label.`,
 // when the branch came from --branch: other veans:branch:* labels on the task
 // are then detached after the new one is attached. Without the flag the
 // existing labels are left alone, as before.
-func runClaim(ctx context.Context, rt *runtime, w io.Writer, ref, branch string, replaceBranchLabels bool) error {
+func runClaim(ctx context.Context, rt *runtime, w io.Writer, ref, branch string, replaceBranchLabels, asJSON bool) error {
 	id, err := rt.resolveTaskID(ctx, ref)
 	if err != nil {
 		return err
@@ -116,8 +115,11 @@ func runClaim(ctx context.Context, rt *runtime, w io.Writer, ref, branch string,
 	if err != nil {
 		return err
 	}
-	rt.withURLs(task)
-	return json.NewEncoder(w).Encode(task)
+	verb := "claimed"
+	if branch != "" {
+		verb += " (branch " + branch + ")"
+	}
+	return rt.emitTask(w, task, asJSON, verb)
 }
 
 func hasAssignee(t *client.Task, userID int64) bool {

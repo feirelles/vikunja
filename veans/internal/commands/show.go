@@ -23,10 +23,18 @@ import (
 )
 
 func newShowCmd() *cobra.Command {
+	var fields []string
 	cmd := &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show a task by PROJ-NN, #NN, or numeric ID",
-		Args:  cobra.ExactArgs(1),
+		Long: `Show a task. The default output is a compact JSON object: id, identifier,
+title, status, done, priority, label titles, assignee usernames, url,
+description (HTML) and related task identifiers. --fields picks keys (from
+that summary, then from the full task object); --json prints the full task.`,
+		Example: `  veans show VKJ-6
+  veans show VKJ-6 --fields title,status,url
+  veans show VKJ-6 --json`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rt, err := loadRuntime(cmd.Context())
 			if err != nil {
@@ -41,8 +49,20 @@ func newShowCmd() *cobra.Command {
 				return err
 			}
 			rt.withURLs(task)
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(task)
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			switch {
+			case wantJSON(cmd):
+				return enc.Encode(task)
+			case len(fields) > 0:
+				m, err := rt.selectFields(task, fields)
+				if err != nil {
+					return err
+				}
+				return enc.Encode(m)
+			}
+			return enc.Encode(rt.summarize(task, true))
 		},
 	}
+	cmd.Flags().StringSliceVar(&fields, "fields", nil, "comma-separated keys to print (e.g. title,status,description)")
 	return cmd
 }

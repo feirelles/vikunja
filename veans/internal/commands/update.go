@@ -18,7 +18,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -69,8 +68,7 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rt.withURLs(task)
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(task)
+			return rt.emitTask(cmd.OutOrStdout(), task, wantJSON(cmd), updateVerb(f))
 		},
 	}
 	cmd.Flags().StringVarP(&f.statusName, "status", "s", "", "transition to a status")
@@ -229,6 +227,34 @@ func runUpdate(ctx context.Context, rt *runtime, id int64, f *updateFlags) (*cli
 	}
 
 	return updated, nil
+}
+
+// updateVerb names what an update changed, for the one-line output:
+// "updated (status, comment)".
+func updateVerb(f *updateFlags) string {
+	var parts []string
+	if f.statusName != "" {
+		parts = append(parts, "status")
+	}
+	if f.title != "" {
+		parts = append(parts, "title")
+	}
+	if f.priorityIsSet {
+		parts = append(parts, "priority")
+	}
+	if f.descriptionIsSet || f.replaceOld != "" || f.descriptionApp != "" {
+		parts = append(parts, "description")
+	}
+	if f.comment != "" {
+		parts = append(parts, "comment")
+	}
+	if len(f.addLabels) > 0 || len(f.removeLabels) > 0 {
+		parts = append(parts, "labels")
+	}
+	if len(parts) == 0 {
+		return "unchanged"
+	}
+	return "updated (" + strings.Join(parts, ", ") + ")"
 }
 
 // composeDescription folds --description / --description-replace-* / --description-append

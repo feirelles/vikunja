@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"text/template"
 	"time"
 
@@ -117,12 +118,13 @@ func buildPrimeContext(ctx context.Context, cfg *config.Config, gate *trust.Gate
 	}
 }
 
-// json keeps remote values on one line with <> escaped, so they can't close the code fence or authority tag.
+// json keeps remote values on one line with <> and backticks escaped, so they
+// can't close the code span they sit in or open a tag.
 func parsePromptTemplate() (*template.Template, error) {
 	return template.New("prime").Funcs(template.FuncMap{
 		"json": func(v any) (string, error) {
 			b, err := json.Marshal(v)
-			return string(b), err
+			return strings.ReplaceAll(string(b), "`", `\u0060`), err
 		},
 	}).Parse(promptTemplate)
 }

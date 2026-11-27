@@ -73,8 +73,9 @@ without affecting your own session.
 ```
 veans init                     OAuth/login → create bot → mint token → write .veans.yml
 veans prime                    emit system prompt for agents (silent if no .veans.yml)
-veans list                     filtered list (--ready, --mine, --branch, --filter, --status); emits JSON
-veans show <id>                view a task (JSON)
+veans list                     filtered list (--ready, --mine, --branch, --filter, --status); JSON
+                               array of compact summaries (no description)
+veans show <id>                view a task: compact JSON with the description; --fields a,b picks keys
 veans create "title"           --description, --label, --status, --priority, --parent, --blocked-by
 veans update <id>              --status, --title, --priority, --label-add/remove,
                                --description, --description-replace-old/new, --description-append,
@@ -88,6 +89,9 @@ veans api METHOD PATH          raw REST passthrough — escape hatch for endpoin
 veans login                    re-mint the bot's token (rotation)
 veans version
 ```
+
+`create`, `update` and `claim` print one line (`VKJ-6 claimed · In Progress · <url>`).
+The global `--json` flag restores the full task object on every agent command.
 
 Task IDs accept `PROJ-NN` (when the project has an identifier), `#NN`
 (when it doesn't), or a bare integer.

@@ -74,7 +74,8 @@ func (f *fakeClaimServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.assigned = true
 		_, _ = w.Write([]byte(`{"user_id":5}`))
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v2/tasks/42":
-		task := client.Task{ID: 42, Index: 6, ProjectID: 7}
+		task := client.Task{ID: 42, Index: 6, ProjectID: 7, Title: "claim me",
+			Buckets: []*client.Bucket{{ID: 11, ProjectViewID: 1}}}
 		if f.assigned {
 			task.Assignees = []*client.User{{ID: 5, Username: "bot-vikunja"}}
 		}
@@ -155,11 +156,11 @@ func (f *fakeClaimServer) count(prefix string) int {
 	return n
 }
 
-func claim(t *testing.T, f *fakeClaimServer, branch string, explicit bool) *client.Task {
+func claimRuntime(t *testing.T, f *fakeClaimServer) *runtime {
 	t.Helper()
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	rt := &runtime{
+	return &runtime{
 		cfg: &config.Config{
 			Server: srv.URL, ProjectID: 7, ProjectIdentifier: "VKJ", ViewID: 1,
 			Bot:     config.Bot{Username: "bot-vikunja", UserID: 5},
@@ -167,8 +168,13 @@ func claim(t *testing.T, f *fakeClaimServer, branch string, explicit bool) *clie
 		},
 		client: client.New(srv.URL, "tk"),
 	}
+}
+
+func claim(t *testing.T, f *fakeClaimServer, branch string, explicit bool) *client.Task {
+	t.Helper()
+	rt := claimRuntime(t, f)
 	var buf bytes.Buffer
-	if err := runClaim(context.Background(), rt, &buf, "VKJ-6", branch, explicit); err != nil {
+	if err := runClaim(context.Background(), rt, &buf, "VKJ-6", branch, explicit, true); err != nil {
 		t.Fatalf("runClaim: %v", err)
 	}
 	var task client.Task
@@ -283,4 +289,18 @@ func TestClaimCmd_EmptyBranchFlagRejected(t *testing.T) {
 	cmd.SetErr(&bytes.Buffer{})
 	err := cmd.Execute()
 	wantCode(t, err, "VALIDATION_ERROR")
+}
+
+// Without --json, claim prints one line: id, what happened, bucket, URL.
+func TestClaim_ShortOutputIsOneLine(t *testing.T) {
+	f := newFakeClaimServer(t, map[int64]string{})
+	rt := claimRuntime(t, f)
+	var buf bytes.Buffer
+	if err := runClaim(context.Background(), rt, &buf, "VKJ-6", "feat/x", true, false); err != nil {
+		t.Fatalf("runClaim: %v", err)
+	}
+	want := "VKJ-6 claimed (branch feat/x) · In Progress · " + rt.cfg.TaskURL(42) + "\n"
+	if got := buf.String(); got != want {
+		t.Fatalf("short output:\nwant %q\ngot  %q", want, got)
+	}
 }
