@@ -18,7 +18,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -53,8 +52,7 @@ func newCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rt.withURLs(task)
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(task)
+			return rt.emitTask(cmd.OutOrStdout(), task, wantJSON(cmd), "created")
 		},
 	}
 	cmd.Flags().StringVarP(&f.description, "description", "d", "", "task description (HTML; see `veans prime` for canonical TipTap shapes)")

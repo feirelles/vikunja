@@ -33,7 +33,6 @@ func TestPrime_RendersWithProjectAndBot(t *testing.T) {
 	}
 
 	mustContain := []string{
-		"<EXTREMELY_IMPORTANT>",
 		cfg.Bot.Username,
 		"Refs:",
 		"veans claim",
@@ -47,6 +46,9 @@ func TestPrime_RendersWithProjectAndBot(t *testing.T) {
 		if !strings.Contains(out, s) {
 			t.Errorf("prime output missing %q", s)
 		}
+	}
+	if len(out) >= 2000 {
+		t.Errorf("prime output is %d bytes, want < 2000", len(out))
 	}
 }
 

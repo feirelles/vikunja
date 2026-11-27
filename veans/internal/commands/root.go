@@ -15,8 +15,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Package commands wires the cobra command tree. Each subcommand lives in a
-// sibling file. The agent-facing commands (list/show/create/update/claim/attach/api)
-// emit JSON unconditionally; only init and login speak human prose.
+// sibling file. Write commands (create/update/claim) print one line per task
+// by default and the full task JSON with --json; show/list print a compact
+// JSON summary by default. attach/api always emit JSON; init and login speak
+// human prose.
 package commands
 
 import (
@@ -37,6 +39,8 @@ func Root(version string) *cobra.Command {
 		SilenceErrors: true,
 		Version:       version,
 	}
+
+	root.PersistentFlags().Bool(jsonFlag, false, "print full task JSON instead of the short default output")
 
 	root.AddCommand(newVersionCmd(version))
 	root.AddCommand(newInitCmd())
