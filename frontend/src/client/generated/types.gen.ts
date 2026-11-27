@@ -2444,7 +2444,7 @@ export type Task = {
      */
     readonly labels?: Array<Label> | null;
     /**
-     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
      */
     readonly open_question_count?: number;
     /**
@@ -2989,7 +2989,7 @@ export type TaskReadOneBody = {
      */
     readonly max_permission?: number;
     /**
-     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
      */
     readonly open_question_count?: number;
     /**
@@ -3709,7 +3709,7 @@ export type TrashedTask = {
      */
     readonly labels?: Array<Label> | null;
     /**
-     * The number of questions on this task that are still open (not answered, deferred or cancelled).
+     * The number of questions on this task that are still open (not answered, deferred or cancelled). Left out when there are none.
      */
     readonly open_question_count?: number;
     /**
