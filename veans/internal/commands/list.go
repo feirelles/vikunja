@@ -55,7 +55,7 @@ Filters can be combined; they're AND-ed together:
   --status <s>     filter by status (todo|in-progress|in-review|completed|scrapped),
                    may be repeated
 
-Prints a JSON array of compact summaries (id, identifier, title, status, done,
+Prints a JSON array of compact summaries (id, identifier, title, status, bucket, done,
 priority, labels, assignees, url; no description). --json prints full tasks.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			rt, err := loadRuntime(cmd.Context())

@@ -177,15 +177,29 @@ func TestRoot_JSONFlagIsPersistent(t *testing.T) {
 	}
 }
 
-// Buckets outside the five canonical ones show up by their own title.
-func TestSummarize_UnknownBucketUsesTitle(t *testing.T) {
+// The board's own bucket title wins: a status may map to a bucket named
+// differently (todo → "Backlog"), and extra buckets have no status at all.
+func TestBucketTitles(t *testing.T) {
 	rt := renderRuntime()
 	task := renderTask()
-	task.Buckets = []*client.Bucket{{ID: 99, Title: "Blocked", ProjectViewID: 1}, {ID: 5, Title: "Other view", ProjectViewID: 2}}
-	if got := rt.summarize(task, false).Status; got != "Blocked" {
-		t.Fatalf("status = %q", got)
+
+	task.Buckets = []*client.Bucket{{ID: 10, Title: "Backlog", ProjectViewID: 1}}
+	s := rt.summarize(task, false)
+	if s.Status != "todo" || s.Bucket != "Backlog" {
+		t.Fatalf("mapped bucket: status=%q bucket=%q", s.Status, s.Bucket)
 	}
 	var buf bytes.Buffer
+	_ = rt.emitTask(&buf, task, false, "created")
+	if !strings.Contains(buf.String(), " · Backlog · ") {
+		t.Fatalf("line = %q", buf.String())
+	}
+
+	task.Buckets = []*client.Bucket{{ID: 99, Title: "Blocked", ProjectViewID: 1}, {ID: 5, Title: "Other view", ProjectViewID: 2}}
+	s = rt.summarize(task, false)
+	if s.Status != "" || s.Bucket != "Blocked" {
+		t.Fatalf("unmapped bucket: status=%q bucket=%q", s.Status, s.Bucket)
+	}
+	buf.Reset()
 	_ = rt.emitTask(&buf, task, false, "claimed")
 	if !strings.Contains(buf.String(), " · Blocked · ") {
 		t.Fatalf("line = %q", buf.String())

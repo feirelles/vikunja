@@ -74,7 +74,7 @@ without affecting your own session.
 veans init                     OAuth/login → create bot → mint token → write .veans.yml
 veans prime                    emit system prompt for agents (silent if no .veans.yml)
 veans list                     filtered list (--ready, --mine, --branch, --filter, --status); JSON
-                               array of compact summaries (no description)
+                               array of compact summaries (status and the board's bucket title, no description)
 veans show <id>                view a task: compact JSON with the description; --fields a,b picks keys
 veans create "title"           --description, --label, --status, --priority, --parent, --blocked-by,
                                --related-to <id|url> (repeatable), --md
