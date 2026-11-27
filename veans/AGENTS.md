@@ -102,10 +102,13 @@ oddly, suspect one of these:
   stored field is therefore HTML. The agent prompt template
   (`internal/commands/prompt.tmpl`) only says they are HTML; TipTap's
   interactive checkboxes are `<ul data-type="taskList">` +
-  `<li data-type="taskItem" data-checked="false"><p>…</p></li>`. We deliberately do **not** convert
-  markdown↔HTML in the CLI; the agent writes HTML directly, which
-  avoids lossy roundtrips on `--description-replace-old/new`. `veans
-  show` displays the raw HTML; humans skim it fine.
+  `<li data-type="taskItem" data-checked="false"><p>…</p></li>`. HTML
+  input is stored as given. `--md` (on `create -d`, `update -c/-d/
+  --description-append`) converts markdown one way through
+  `internal/markdown` (goldmark + GFM, raw HTML passes through, task lists
+  and `<li><p>` in TipTap's shape). There is no HTML→markdown path, and
+  `--description-replace-old/new` always match stored HTML, even with
+  `--md`. `veans show` displays the raw HTML.
 
 ## API token permissions
 
@@ -214,8 +217,8 @@ one-off setup:
   share, mint token, write `.veans.yml`, install hooks.
 - **`login`** — rotate the bot's token.
 
-Everything else (`list`, `show`, `create`, `update`, `claim`, `api`,
-`prime`, `version`) is **agent-only**:
+Everything else (`list`, `show`, `create`, `update`, `claim`, `relate`,
+`attach`, `api`, `prime`, `version`) is **agent-only**:
 
 - **Output is short by default; `--json` gives the full object.** The
   agent pays for every byte in its context. `create` / `update` / `claim`

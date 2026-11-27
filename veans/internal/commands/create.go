@@ -34,6 +34,8 @@ type createFlags struct {
 	labels      []string
 	parent      string
 	blockedBy   []string
+	relatedTo   []string
+	md          bool
 }
 
 func newCreateCmd() *cobra.Command {
@@ -55,12 +57,14 @@ func newCreateCmd() *cobra.Command {
 			return rt.emitTask(cmd.OutOrStdout(), task, wantJSON(cmd), "created")
 		},
 	}
-	cmd.Flags().StringVarP(&f.description, "description", "d", "", "task description (HTML; see `veans prime` for canonical TipTap shapes)")
+	cmd.Flags().StringVarP(&f.description, "description", "d", "", "task description (HTML, or markdown with --md)")
 	cmd.Flags().StringVarP(&f.statusName, "status", "s", "todo", "initial status (defaults to todo)")
 	cmd.Flags().Int64Var(&f.priority, "priority", 0, "priority (0=unset, 1=low, 5=DO_NOW)")
 	cmd.Flags().StringSliceVar(&f.labels, "label", nil, "labels to attach (repeatable; veans: prefix added if missing)")
 	cmd.Flags().StringVar(&f.parent, "parent", "", "parent task ID (creates parenttask relation)")
 	cmd.Flags().StringSliceVar(&f.blockedBy, "blocked-by", nil, "task IDs that block this one (repeatable)")
+	cmd.Flags().StringSliceVar(&f.relatedTo, "related-to", nil, "task IDs or task URLs to relate to with kind related (repeatable)")
+	cmd.Flags().BoolVar(&f.md, "md", false, "--description is markdown; convert it to Vikunja's HTML")
 	return cmd
 }
 
@@ -69,6 +73,20 @@ func runCreate(ctx context.Context, rt *runtime, title string, f *createFlags) (
 	if err != nil {
 		return nil, err
 	}
+	description, err := maybeMarkdown(f.description, f.md)
+	if err != nil {
+		return nil, err
+	}
+	// Resolve every referenced task before creating anything, so a typo in
+	// --related-to fails without leaving a half-linked task behind.
+	related := make([]int64, 0, len(f.relatedTo))
+	for _, ref := range f.relatedTo {
+		id, err := rt.resolveRelationTarget(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		related = append(related, id)
+	}
 	bucketID, err := status.BucketID(st, rt.cfg.Buckets)
 	if err != nil {
 		return nil, err
@@ -76,7 +94,7 @@ func runCreate(ctx context.Context, rt *runtime, title string, f *createFlags) (
 
 	created, err := rt.client.CreateTask(ctx, rt.cfg.ProjectID, &client.Task{
 		Title:       strings.TrimSpace(title),
-		Description: f.description,
+		Description: description,
 		Priority:    f.priority,
 		ProjectID:   rt.cfg.ProjectID,
 		BucketID:    bucketID,
@@ -126,6 +144,12 @@ func runCreate(ctx context.Context, rt *runtime, title string, f *createFlags) (
 			return nil, err
 		}
 		if _, err := rt.client.CreateRelation(ctx, created.ID, blockerID, "blocked"); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, otherID := range related {
+		if _, _, err := rt.relate(ctx, created.ID, otherID, "related"); err != nil {
 			return nil, err
 		}
 	}

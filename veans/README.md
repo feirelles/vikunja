@@ -76,13 +76,15 @@ veans prime                    emit system prompt for agents (silent if no .vean
 veans list                     filtered list (--ready, --mine, --branch, --filter, --status); JSON
                                array of compact summaries (no description)
 veans show <id>                view a task: compact JSON with the description; --fields a,b picks keys
-veans create "title"           --description, --label, --status, --priority, --parent, --blocked-by
+veans create "title"           --description, --label, --status, --priority, --parent, --blocked-by,
+                               --related-to <id|url> (repeatable), --md
 veans update <id>              --status, --title, --priority, --label-add/remove,
                                --description, --description-replace-old/new, --description-append,
-                               --comment, --reason, --if-unchanged-since
+                               --comment, --reason, --if-unchanged-since, --md
 veans claim <id>               assign the bot, move to In Progress, tag with current branch label;
                                --branch <name> tags veans:branch:<name> instead and replaces any
                                other veans:branch:* label on the task
+veans relate <A> <B>           relate two tasks (--kind related|blocking|subtask|…; B may be a task URL)
 veans attach <id> <file>...    upload files as task attachments (multipart); refuses
                                missing/empty files and files over the server's max_file_size
 veans api METHOD PATH          raw REST passthrough — escape hatch for endpoints not wrapped here
@@ -92,6 +94,8 @@ veans version
 
 `create`, `update` and `claim` print one line (`VKJ-6 claimed · In Progress · <url>`).
 The global `--json` flag restores the full task object on every agent command.
+`--md` takes markdown for descriptions and comments and stores the HTML Vikunja's
+editor expects (task lists become checkboxes).
 
 Task IDs accept `PROJ-NN` (when the project has an identifier), `#NN`
 (when it doesn't), or a bare integer.
