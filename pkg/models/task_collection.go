@@ -35,6 +35,9 @@ type TaskCollection struct {
 	ProjectViewID      int64 `param:"view" json:"-"`
 	IncludeSubprojects bool  `json:"include_subprojects,omitempty" query:"include_subprojects"`
 
+	// If true, tasks that have a parent task the user can read are left out, even when the parent is in another project.
+	HideSubtasks bool `json:"-" query:"hide_subtasks"`
+
 	Search string `query:"s" json:"s" doc:"A search term to match tasks by their title or description. A plain number also matches a task's number: either the index shown in the UI or the id from the task URL. \"#12\" only matches the index."`
 
 	// The query parameter to sort by. This is for ex. done, priority, etc.
@@ -153,6 +156,7 @@ func getTaskFilterOptsFromCollection(tf *TaskCollection, projectView *ProjectVie
 		filterIncludeNulls: tf.FilterIncludeNulls,
 		filter:             tf.Filter,
 		filterTimezone:     tf.FilterTimezone,
+		hideSubtasks:       tf.HideSubtasks,
 	}
 
 	if projectView != nil {

@@ -110,6 +110,40 @@ describe('KanbanCard', () => {
 	})
 
 	// The ctrl click itself is covered by e2e project-view-kanban.spec.ts, which reads the task back from the API.
+	it('shows how many subtasks are done, including ones from other projects', () => {
+		const wrapper = mountCard(normalizeTask({
+			id: 8,
+			project_id: 1,
+			title: 'Objective',
+			related_tasks: {subtask: [
+				{id: 9, project_id: 1, title: 'a', done: true},
+				{id: 10, project_id: 2, title: 'b', done: false},
+				{id: 11, project_id: 3, title: 'c', done: true},
+			]},
+		}))
+
+		const progress = wrapper.find('.subtask-progress')
+		expect(progress.text()).toBe('2/3')
+		expect(progress.classes()).not.toContain('is-complete')
+	})
+
+	it('marks the progress complete when every subtask is done', () => {
+		const wrapper = mountCard(normalizeTask({
+			id: 8,
+			project_id: 1,
+			title: 'Objective',
+			related_tasks: {subtask: [{id: 9, project_id: 1, title: 'a', done: true}]},
+		}))
+
+		expect(wrapper.find('.subtask-progress').classes()).toContain('is-complete')
+	})
+
+	it('shows no progress without subtasks', () => {
+		const wrapper = mountCard(normalizeTask({id: 8, project_id: 1, title: 'Plain', related_tasks: {parenttask: [{id: 1, project_id: 1, title: 'p'}]}}))
+
+		expect(wrapper.find('.subtask-progress').exists()).toBe(false)
+	})
+
 	it('announces a completed recurring task to the board', async () => {
 		sdk.patchTasksRead.mockResolvedValue({data: {...recurringTask, done: true}})
 		const wrapper = mountCard(recurringTask)

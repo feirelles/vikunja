@@ -59,6 +59,7 @@ type TaskListQueryParams struct {
 	FilterTimezone     string   `query:"filter_timezone" doc:"Timezone used to resolve relative date filters like \"now\"."`
 	FilterIncludeNulls bool     `query:"filter_include_nulls" doc:"If true, also include tasks whose filtered field is null."`
 	IncludeSubprojects bool     `query:"include_subprojects" doc:"If true, also returns tasks from all descendant subprojects the user can access. Ignored outside a concrete project, in kanban views and for link shares. Their position in this view is stored separately from the one in their own project's views."`
+	HideSubtasks       bool     `query:"hide_subtasks" doc:"If true, leave out tasks that have a parent task you can read, also when the parent is in another project. Bucket task counts still include them."`
 	SortBy             []string `query:"sort_by,explode" doc:"Fields to sort by (e.g. done, priority). Repeatable; pair positionally with order_by. The special value relevance sorts by search relevance (most relevant first, requires s; ignored when the database cannot score the query)."`
 	OrderBy            []string `query:"order_by,explode" doc:"Sort order per sort_by field, asc or desc. Repeatable; defaults to asc."`
 	Expand             []string `query:"expand,explode" enum:"subtasks,buckets,reactions,comments,comment_count,time_entries_count,is_unread" doc:"Embed extra, more expensive data per task. Repeatable."`
@@ -88,13 +89,14 @@ type taskListFilters struct {
 	FilterTimezone     string
 	FilterIncludeNulls bool
 	IncludeSubprojects bool
+	HideSubtasks       bool
 	SortBy             []string
 	OrderBy            []string
 	Expand             []string
 }
 
 func (in TaskListQueryParams) filters() taskListFilters {
-	return taskListFilters{in.Q, in.Filter, in.FilterTimezone, in.FilterIncludeNulls, in.IncludeSubprojects, in.SortBy, in.OrderBy, in.Expand}
+	return taskListFilters{in.Q, in.Filter, in.FilterTimezone, in.FilterIncludeNulls, in.IncludeSubprojects, in.HideSubtasks, in.SortBy, in.OrderBy, in.Expand}
 }
 
 // collection turns the bound query into a TaskCollection. The search term
@@ -113,6 +115,7 @@ func (f taskListFilters) collection(projectID, viewID int64, forceFlat bool) (*m
 		FilterTimezone:     f.FilterTimezone,
 		FilterIncludeNulls: f.FilterIncludeNulls,
 		IncludeSubprojects: f.IncludeSubprojects,
+		HideSubtasks:       f.HideSubtasks,
 		SortBy:             f.SortBy,
 		OrderBy:            f.OrderBy,
 		Expand:             expand,

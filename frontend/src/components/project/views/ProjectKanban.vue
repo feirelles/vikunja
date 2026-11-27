@@ -7,6 +7,16 @@
 	>
 		<template #header>
 			<div class="filter-container">
+				<XButton
+					v-tooltip="showSubtasks ? undefined : $t('project.kanban.subtasksHiddenHint')"
+					variant="secondary"
+					icon="sitemap"
+					class="mie-2 subtask-toggle"
+					:aria-pressed="showSubtasks"
+					@click="showSubtasks = !showSubtasks"
+				>
+					{{ showSubtasks ? $t('project.kanban.hideSubtasks') : $t('project.kanban.showSubtasks') }}
+				</XButton>
 				<FilterPopup
 					v-if="!isSavedFilterProject(project)"
 					v-model="params"
@@ -315,6 +325,7 @@ import {computed, nextTick, ref, watch, toRef} from 'vue'
 import {useQuery, useQueryClient} from '@tanstack/vue-query'
 import {useRouter} from 'vue-router'
 import {useRouteQuery} from '@vueuse/router'
+import {useStorage} from '@vueuse/core'
 import {useI18n} from 'vue-i18n'
 import {draggableFor} from '@/components/base/Draggable'
 import type {SortableEvent} from 'sortablejs'
@@ -499,7 +510,13 @@ function onHandleTouchMove(e: TouchEvent) {
 	}
 }
 
-const boardParams = computed(() => ({...params.value, filter_timezone: authStore.settings.timezone}))
+// Subtasks are hidden by default: their parent card shows the progress instead.
+const showSubtasks = useStorage(() => `kanbanShowSubtasks-${props.viewId}`, false)
+const boardParams = computed(() => ({
+	...params.value,
+	filter_timezone: authStore.settings.timezone,
+	hide_subtasks: !showSubtasks.value,
+}))
 const board = useKanban(projectId, () => props.viewId, boardParams)
 const queryClient = useQueryClient()
 const buckets = board.buckets

@@ -610,6 +610,9 @@
     },
     "kanban": {
       "title": "Kanban",
+      "showSubtasks": "Show subtasks",
+      "hideSubtasks": "Hide subtasks",
+      "subtasksHiddenHint": "Tasks with a parent task are hidden. Their parent shows how many are done.",
       "limit": "Limit: {limit}",
       "doneBucket": "Done bucket",
       "doneBucketHint": "All tasks moved into this bucket will automatically marked as done.",
@@ -1267,6 +1270,7 @@
       "subscribeSuccessTask": "You are now subscribed to this task",
       "unsubscribeSuccessTask": "You are now unsubscribed to this task"
     },
+    "subtaskProgress": "{done} of {total} subtasks done",
     "attachment": {
       "title": "Attachments",
       "createdBy": "created {0} by {1}",

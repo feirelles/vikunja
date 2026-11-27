@@ -446,6 +446,27 @@ func (d *dbTaskSearcher) buildSubtaskRootCondition(opts *taskSearchOptions) (bui
 	return builder.NotExists(sub), nil
 }
 
+// buildHideSubtasksCondition leaves out every task with a parent the user can
+// read, wherever the parent lives. A parent in a project the user cannot see does
+// not hide the child, or the child would be visible nowhere.
+func (d *dbTaskSearcher) buildHideSubtasksCondition() (builder.Cond, error) {
+	accessible, err := accessibleProjectIDsCond(d.s, d.a, "parent_tasks.project_id")
+	if err != nil {
+		return nil, err
+	}
+	sub := builder.
+		Select("1").
+		From("task_relations").
+		InnerJoin("tasks parent_tasks", "task_relations.other_task_id = parent_tasks.id").
+		Where(builder.And(
+			builder.Expr("task_relations.task_id = tasks.id"),
+			builder.Eq{"task_relations.relation_kind": RelationKindParenttask},
+			taskNotDeletedCond("parent_tasks"),
+			accessible,
+		))
+	return builder.NotExists(sub), nil
+}
+
 // Inaccessible tasks cannot bridge the traversal; seen terminates cycles.
 func (d *dbTaskSearcher) fetchAccessibleSubtasks(rootIDs []int64) ([]*Task, error) {
 	accessible, err := accessibleProjectIDsCond(d.s, d.a, "`tasks`.`project_id`")
@@ -647,6 +668,14 @@ func (d *dbTaskSearcher) Search(opts *taskSearchOptions) (tasks []*Task, totalCo
 
 	limit, start := getLimitFromPageIndex(opts.page, opts.perPage)
 	cond := builder.And(builder.Or(projectIDCond, favoritesCond), where, filterCond)
+
+	if opts.hideSubtasks {
+		hideCond, err := d.buildHideSubtasksCondition()
+		if err != nil {
+			return nil, 0, err
+		}
+		cond = builder.And(cond, hideCond)
+	}
 
 	// When the favorites arm is still part of the query (Favorites view, or
 	// out-of-scope favorites exist), its shape is unsupported — stay unranked.
