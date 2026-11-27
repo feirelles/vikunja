@@ -156,6 +156,12 @@ function canPatchBoard(view: ProjectView | undefined, params: TaskFilterParams |
 		&& !params?.q
 }
 
+// A board that hides subtasks must not gain a card for a task with a parent, and a card that
+// just got a parent has to leave it. Whether the parent is readable is the server's call.
+function hiddenAsSubtask(params: TaskFilterParams | undefined, task: TaskResponse): boolean {
+	return params?.hide_subtasks === true && (task.related_tasks.parenttask?.length ?? 0) > 0
+}
+
 // Like the server, a done task goes to the done bucket even when another bucket was requested.
 function targetBucketId(view: ProjectView, board: BoardData, task: TaskResponse): number | undefined {
 	if (task.done && view.done_bucket_id) return view.done_bucket_id
@@ -172,7 +178,7 @@ export function insertTaskIntoBoards(client: QueryClient, created: Task) {
 		const viewId = kanbanKeys.viewOf(key)
 		if (!board || project === undefined || project !== task.project_id || viewId === undefined) continue
 		const view = getCachedProject(project, client)?.views?.find(item => item.id === viewId)
-		if (!canPatchBoard(view, kanbanKeys.paramsOf(key))) {
+		if (!canPatchBoard(view, kanbanKeys.paramsOf(key)) || hiddenAsSubtask(kanbanKeys.paramsOf(key), task)) {
 			unpatchable.push(key)
 			continue
 		}
@@ -232,7 +238,7 @@ export function placeTaskInBoards(
 		const viewId = kanbanKeys.viewOf(key)
 		if (!board || project === undefined || project !== task.project_id || viewId === undefined) continue
 		const view = getCachedProject(project, client)?.views?.find(item => item.id === viewId)
-		if (!canPatchBoard(view, kanbanKeys.paramsOf(key))) {
+		if (!canPatchBoard(view, kanbanKeys.paramsOf(key)) || hiddenAsSubtask(kanbanKeys.paramsOf(key), task)) {
 			unpatchable.push(key)
 			continue
 		}

@@ -251,6 +251,33 @@ func TestHumaTaskCollection_Buckets(t *testing.T) {
 		assert.Contains(t, body, `"total":3`)
 	})
 
+	t.Run("hide_subtasks leaves out subtasks", func(t *testing.T) {
+		bucketTaskIDs := func(path string) []int64 {
+			rec := get(path)
+			require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+			var body struct {
+				Items []struct {
+					Tasks []struct {
+						ID int64 `json:"id"`
+					} `json:"tasks"`
+				} `json:"items"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			ids := []int64{}
+			for _, b := range body.Items {
+				for _, task := range b.Tasks {
+					ids = append(ids, task.ID)
+				}
+			}
+			return ids
+		}
+		// Task 29 is a subtask of task 1.
+		assert.Contains(t, bucketTaskIDs("/api/v2/projects/1/views/4/buckets/tasks"), int64(29))
+		hidden := bucketTaskIDs("/api/v2/projects/1/views/4/buckets/tasks?hide_subtasks=true")
+		assert.NotContains(t, hidden, int64(29))
+		assert.Contains(t, hidden, int64(1))
+	})
+
 	t.Run("forbidden project", func(t *testing.T) {
 		rec := get("/api/v2/projects/2/views/8/buckets/tasks")
 		assert.Equal(t, http.StatusForbidden, rec.Code, "body: %s", rec.Body.String())

@@ -160,6 +160,28 @@ describe('ProjectKanban', () => {
 		drop.result = {moved: false, targetProjectId: null}
 	})
 
+	it('hides subtasks by default', async () => {
+		localStorage.removeItem('kanbanShowSubtasks-10')
+		await mountKanban()
+
+		expect(loadBoard).toHaveBeenCalledWith(expect.objectContaining({
+			query: expect.objectContaining({hide_subtasks: true}),
+		}))
+	})
+
+	it('shows subtasks when the view remembers that choice', async () => {
+		localStorage.setItem('kanbanShowSubtasks-10', 'true')
+		try {
+			await mountKanban()
+		} finally {
+			localStorage.removeItem('kanbanShowSubtasks-10')
+		}
+
+		expect(loadBoard).toHaveBeenCalledWith(expect.objectContaining({
+			query: expect.objectContaining({hide_subtasks: false}),
+		}))
+	})
+
 	it('saves the position of the dropped bucket', async () => {
 		const wrapper = await mountKanban()
 

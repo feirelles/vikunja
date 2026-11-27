@@ -283,6 +283,35 @@ describe('placeTaskInBoards', () => {
 			tasks: bucket.tasks.map(task => [task.id, task.position]),
 		}))
 
+	it('refetches a board that hides subtasks instead of placing a task with a parent on it', () => {
+		const client = new QueryClient()
+		const plain = boardWith(client, [{id: 1, position: 200}])
+		const hiding = kanbanKeys.board(1, 2, {hide_subtasks: true})
+		client.setQueryData(hiding, client.getQueryData<BoardData>(plain))
+		const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+		placeTaskInBoards(client, {
+			id: 9,
+			project_id: 1,
+			related_tasks: {parenttask: [{id: 1, project_id: 1}]},
+		}, [{project_view_id: 2, bucket_id: 3, position: 50}], true)
+
+		expect(shape(client, plain)?.[0]).toEqual({count: 2, tasks: [[9, 50], [1, 200]]})
+		expect(shape(client, hiding)?.[0]).toEqual({count: 1, tasks: [[1, 200]]})
+		expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({queryKey: hiding, exact: true}))
+	})
+
+	it('still places a task without a parent on a board that hides subtasks', () => {
+		const client = new QueryClient()
+		const plain = boardWith(client, [{id: 1, position: 200}])
+		const hiding = kanbanKeys.board(1, 2, {hide_subtasks: true})
+		client.setQueryData(hiding, client.getQueryData<BoardData>(plain))
+
+		placeTaskInBoards(client, {id: 9, project_id: 1}, [{project_view_id: 2, bucket_id: 3, position: 50}], true)
+
+		expect(shape(client, hiding)?.[0]).toEqual({count: 2, tasks: [[9, 50], [1, 200]]})
+	})
+
 	it('moves a loaded card to the stored bucket at its stored position', () => {
 		const client = new QueryClient()
 		const board = boardWith(client, [{id: 9, position: 100}, {id: 1, position: 200}])

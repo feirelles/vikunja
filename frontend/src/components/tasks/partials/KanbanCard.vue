@@ -107,6 +107,17 @@
 				>
 					<Icon icon="history" />
 				</span>
+				<span
+					v-if="subtaskProgress"
+					class="subtask-progress"
+					:class="{'is-complete': subtaskProgress.done === subtaskProgress.total}"
+					role="img"
+					:aria-label="$t('task.subtaskProgress', subtaskProgress)"
+					:title="$t('task.subtaskProgress', subtaskProgress)"
+				>
+					<Icon icon="sitemap" />
+					<span>{{ subtaskProgress.done }}/{{ subtaskProgress.total }}</span>
+				</span>
 				<CommentCount
 					:task="task"
 					class="project-task-icon"
@@ -169,6 +180,18 @@ const props = defineProps<{
 const emit = defineEmits<{
 	'taskCompletedRecurring': [task: ITask]
 }>()
+
+// Children may live in other projects; related_tasks carries every one the user can read.
+const subtaskProgress = computed(() => {
+	const subtasks = props.task.related_tasks?.subtask ?? []
+	if (subtasks.length === 0) {
+		return null
+	}
+	return {
+		done: subtasks.filter(subtask => subtask.done).length,
+		total: subtasks.length,
+	}
+})
 
 const router = useRouter()
 const updateTask = useUpdateTaskMutation()
@@ -411,6 +434,22 @@ $task-background: var(--white);
 		background: var(--grey-100);
 		border-radius: $radius;
 		padding: 0 .5rem;
+	}
+
+	.subtask-progress {
+		display: inline-flex;
+		align-items: center;
+		gap: .25rem;
+		background: var(--grey-100);
+		border-radius: $radius;
+		padding: 0 .5rem;
+		font-size: .8rem;
+		color: var(--grey-700);
+		font-variant-numeric: tabular-nums;
+
+		&.is-complete {
+			color: var(--success);
+		}
 	}
 
 	.task-id, .project-title {
