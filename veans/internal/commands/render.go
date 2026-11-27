@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"code.vikunja.io/veans/internal/client"
+	"code.vikunja.io/veans/internal/markdown"
 	"code.vikunja.io/veans/internal/output"
 	"code.vikunja.io/veans/internal/status"
 )
@@ -194,4 +195,16 @@ func (r *runtime) emitTask(w io.Writer, t *client.Task, asJSON bool, verb string
 		return json.NewEncoder(w).Encode(t)
 	}
 	return r.writeTaskLine(w, t, verb)
+}
+
+// maybeMarkdown converts s from markdown when md is set. Empty stays empty.
+func maybeMarkdown(s string, md bool) (string, error) {
+	if !md || s == "" {
+		return s, nil
+	}
+	html, err := markdown.ToHTML(s)
+	if err != nil {
+		return "", output.Wrap(output.CodeValidation, err, "convert markdown: %v", err)
+	}
+	return html, nil
 }

@@ -43,6 +43,7 @@ type updateFlags struct {
 	comment          string
 	reason           string
 	ifUnchangedSince string
+	md               bool
 }
 
 func newUpdateCmd() *cobra.Command {
@@ -76,12 +77,13 @@ func newUpdateCmd() *cobra.Command {
 	cmd.Flags().Int64Var(&f.priority, "priority", 0, "new priority")
 	cmd.Flags().StringSliceVar(&f.addLabels, "label-add", nil, "labels to attach (repeatable; veans: prefix added if missing)")
 	cmd.Flags().StringSliceVar(&f.removeLabels, "label-remove", nil, "labels to detach (repeatable)")
-	cmd.Flags().StringVar(&f.description, "description", "", "replace the entire description")
+	cmd.Flags().StringVarP(&f.description, "description", "d", "", "replace the entire description")
 	cmd.Flags().StringVar(&f.replaceOld, "description-replace-old", "", "exact-match string to replace in description (must be unique)")
 	cmd.Flags().StringVar(&f.replaceNew, "description-replace-new", "", "replacement for --description-replace-old")
 	cmd.Flags().StringVar(&f.descriptionApp, "description-append", "", "append text to the existing description")
 	cmd.Flags().StringVarP(&f.comment, "comment", "c", "", "post a comment as part of this update")
 	cmd.Flags().StringVar(&f.reason, "reason", "", "rationale (required when --status scrapped)")
+	cmd.Flags().BoolVar(&f.md, "md", false, "--comment, --description and --description-append are markdown; convert them to Vikunja's HTML")
 	cmd.Flags().StringVar(&f.ifUnchangedSince, "if-unchanged-since", "", "RFC3339 timestamp; abort if the task has changed since")
 	return cmd
 }
@@ -94,6 +96,9 @@ func newUpdateCmd() *cobra.Command {
 //
 //nolint:gocyclo // single-pass orchestration; each branch is one short stanza
 func runUpdate(ctx context.Context, rt *runtime, id int64, f *updateFlags) (*client.Task, error) {
+	if err := f.convertMarkdown(); err != nil {
+		return nil, err
+	}
 	current, err := rt.client.GetTask(ctx, id)
 	if err != nil {
 		return nil, err
@@ -227,6 +232,23 @@ func runUpdate(ctx context.Context, rt *runtime, id int64, f *updateFlags) (*cli
 	}
 
 	return updated, nil
+}
+
+// convertMarkdown turns the --md inputs into HTML in place. The
+// --description-replace-* pair is left alone: it matches stored HTML.
+func (f *updateFlags) convertMarkdown() error {
+	if !f.md {
+		return nil
+	}
+	for _, field := range []*string{&f.description, &f.descriptionApp, &f.comment} {
+		html, err := maybeMarkdown(*field, true)
+		if err != nil {
+			return err
+		}
+		*field = html
+	}
+	f.md = false // idempotent if runUpdate is called again with the same flags
+	return nil
 }
 
 // updateVerb names what an update changed, for the one-line output:
