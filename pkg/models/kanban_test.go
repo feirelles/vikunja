@@ -244,6 +244,37 @@ func TestBucket_Delete(t *testing.T) {
 			"project_view_id": 72,
 		}, false)
 	})
+	t.Run("default bucket that is also the first one", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		// Bucket 1 is view 4's default bucket and has the lowest position, so
+		// the fallback must skip it and pick bucket 2.
+		b := &Bucket{
+			ID:            1,
+			ProjectID:     1,
+			ProjectViewID: 4,
+		}
+		err := b.Delete(s, u)
+		require.NoError(t, err)
+		err = s.Commit()
+		require.NoError(t, err)
+
+		orphaned, err := s.Where("bucket_id = ?", 1).Count(&TaskBucket{})
+		require.NoError(t, err)
+		assert.Zero(t, orphaned)
+
+		moved, err := s.Where("bucket_id = ? AND project_view_id = ?", 2, 4).Count(&TaskBucket{})
+		require.NoError(t, err)
+		assert.Equal(t, int64(14), moved)
+
+		db.AssertMissing(t, "buckets", map[string]interface{}{"id": 1})
+		db.AssertExists(t, "project_views", map[string]interface{}{
+			"id":                4,
+			"default_bucket_id": 0,
+		}, false)
+	})
 	t.Run("done bucket should be reset", func(t *testing.T) {
 		db.LoadAndAssertFixtures(t)
 		s := db.NewSession()
