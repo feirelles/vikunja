@@ -56,7 +56,7 @@ func TestMCP_Catalog_FindActionFollowsScopes(t *testing.T) {
 }
 func TestMCP_Catalog_FindActionDescriptionListsAuthorizedAreas(t *testing.T) {
 	desc := newMCPClient(t, mcpFullToken).toolDescription("find_action")
-	assert.Equal(t, "Discover additional Vikunja actions for: labels, project_views, sharing, tasks. Returns only actions your token authorizes; pass action or resource for full input schemas. Call with no arguments to list all action names. Invoke them with do_action.", desc)
+	assert.Equal(t, "Discover additional Vikunja actions for: labels, project_views, sharing, task_questions, tasks. Returns only actions your token authorizes; pass action or resource for full input schemas. Call with no arguments to list all action names. Invoke them with do_action.", desc)
 }
 func TestMCP_Catalog_FindActionReturnsSchemas(t *testing.T) {
 	c := newMCPClient(t, mcpFullToken)
@@ -68,6 +68,38 @@ func TestMCP_Catalog_FindActionReturnsSchemas(t *testing.T) {
 	one := findActions(t, c, map[string]any{"action": "project_views_list"})
 	require.Len(t, one, 1)
 	assert.Contains(t, one[0]["input_schema"].(map[string]any)["properties"], "project")
+}
+func TestMCP_Catalog_TaskQuestions(t *testing.T) {
+	c := newMCPClient(t, mcpFullToken)
+	names := []string{}
+	for _, a := range findActions(t, c, map[string]any{"resource": "task_questions"}) {
+		names = append(names, a["name"].(string))
+	}
+	assert.ElementsMatch(t, []string{
+		"task_questions_answer",
+		"task_questions_create",
+		"task_questions_delete",
+		"task_questions_list",
+		"task_questions_read",
+		"task_questions_update",
+	}, names)
+
+	var question map[string]any
+	toolResultJSON(t, c.callTool("do_action", map[string]any{
+		"action": "task_questions_create",
+		"arguments": map[string]any{
+			"task":    1,
+			"title":   "From MCP?",
+			"options": []map[string]any{{"key": "A", "label": "Yes"}, {"key": "B", "label": "No"}},
+		},
+	}), &question)
+	id := question["id"]
+	res := c.callTool("do_action", map[string]any{
+		"action":    "task_questions_answer",
+		"arguments": map[string]any{"task": 1, "question": id, "option": "B", "notes": "via mcp"},
+	})
+	require.NotContains(t, res, "isError", toolResultText(t, res))
+	assert.Contains(t, toolResultText(t, res), `"status":"answered"`)
 }
 func TestMCP_Catalog_DoActionRoundTrip(t *testing.T) {
 	c := newMCPClient(t, mcpFullToken)

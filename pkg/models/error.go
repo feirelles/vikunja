@@ -3373,3 +3373,99 @@ func (err ErrUserDataExportDoesNotExist) HTTPError() web.HTTPError {
 		Message:  "No user data export found.",
 	}
 }
+
+// =======================
+// Task question errors (fork-only codes)
+// =======================
+
+// ErrTaskQuestionDoesNotExist represents an error where a task question does not exist.
+type ErrTaskQuestionDoesNotExist struct {
+	ID     int64
+	TaskID int64
+}
+
+// IsErrTaskQuestionDoesNotExist checks if an error is ErrTaskQuestionDoesNotExist.
+func IsErrTaskQuestionDoesNotExist(err error) bool {
+	_, ok := err.(ErrTaskQuestionDoesNotExist)
+	return ok
+}
+
+func (err ErrTaskQuestionDoesNotExist) Error() string {
+	return fmt.Sprintf("Task question does not exist [ID: %d, TaskID: %d]", err.ID, err.TaskID)
+}
+
+// ErrCodeTaskQuestionDoesNotExist holds the unique world-error code of this error
+const ErrCodeTaskQuestionDoesNotExist = 90001
+
+// HTTPError holds the http error description
+func (err ErrTaskQuestionDoesNotExist) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusNotFound,
+		Code:     ErrCodeTaskQuestionDoesNotExist,
+		Message:  "This task question does not exist.",
+	}
+}
+
+// ErrInvalidTaskQuestion represents an invalid question (options or recommendation).
+type ErrInvalidTaskQuestion struct {
+	Reason string
+}
+
+func (err ErrInvalidTaskQuestion) Error() string {
+	return "Invalid task question: " + err.Reason
+}
+
+// ErrCodeInvalidTaskQuestion holds the unique world-error code of this error
+const ErrCodeInvalidTaskQuestion = 90002
+
+// HTTPError holds the http error description
+func (err ErrInvalidTaskQuestion) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusBadRequest,
+		Code:     ErrCodeInvalidTaskQuestion,
+		Message:  "Invalid task question: " + err.Reason + ".",
+	}
+}
+
+// ErrInvalidTaskQuestionAnswer represents an answer that does not fit the question.
+type ErrInvalidTaskQuestionAnswer struct {
+	Reason string
+}
+
+func (err ErrInvalidTaskQuestionAnswer) Error() string {
+	return "Invalid task question answer: " + err.Reason
+}
+
+// ErrCodeInvalidTaskQuestionAnswer holds the unique world-error code of this error
+const ErrCodeInvalidTaskQuestionAnswer = 90003
+
+// HTTPError holds the http error description
+func (err ErrInvalidTaskQuestionAnswer) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusBadRequest,
+		Code:     ErrCodeInvalidTaskQuestionAnswer,
+		Message:  "Invalid answer: " + err.Reason + ".",
+	}
+}
+
+// ErrTaskQuestionNotOpen represents answering a question that is answered or cancelled.
+type ErrTaskQuestionNotOpen struct {
+	ID     int64
+	Status TaskQuestionStatus
+}
+
+func (err ErrTaskQuestionNotOpen) Error() string {
+	return fmt.Sprintf("Task question is not open [ID: %d, Status: %s]", err.ID, err.Status)
+}
+
+// ErrCodeTaskQuestionNotOpen holds the unique world-error code of this error
+const ErrCodeTaskQuestionNotOpen = 90004
+
+// HTTPError holds the http error description
+func (err ErrTaskQuestionNotOpen) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusPreconditionFailed,
+		Code:     ErrCodeTaskQuestionNotOpen,
+		Message:  "This question is already " + string(err.Status) + ". Reopen it to answer again.",
+	}
+}

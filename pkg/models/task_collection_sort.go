@@ -49,6 +49,7 @@ const (
 	taskPropertyIndex         string = "index"
 	taskPropertyProjectViewID string = "project_view_id"
 	taskPropertyAssignees     string = "assignees"
+	taskPropertyQuestions     string = "questions"
 	taskPropertyLabels        string = "labels"
 	taskPropertyReminders     string = "reminders"
 	taskPropertyCreatedBy     string = "created_by"

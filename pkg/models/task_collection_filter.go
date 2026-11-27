@@ -534,6 +534,21 @@ func getNativeValueForTaskField(fieldName string, comparator taskFilterComparato
 		return nil, valueSlice, nil
 	}
 
+	if fieldName == taskPropertyQuestions {
+		statuses := []string{}
+		for _, val := range strings.Split(value, ",") {
+			status := TaskQuestionStatus(strings.TrimSpace(val))
+			if status == "" {
+				continue
+			}
+			if !status.valid() {
+				return nil, nil, ErrInvalidTaskFilterValue{Field: fieldName, Value: value}
+			}
+			statuses = append(statuses, string(status))
+		}
+		return nil, statuses, nil
+	}
+
 	field, ok := reflect.TypeOf(&Task{}).Elem().FieldByName(realFieldName)
 	if !ok {
 		return nil, nil, ErrInvalidTaskField{TaskField: fieldName}

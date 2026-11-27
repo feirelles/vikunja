@@ -63,6 +63,13 @@ var subTableFilters = SubTableFilters{
 		FilterableField: "username",
 		AllowNullCheck:  true,
 	},
+	// questions = open matches tasks with at least one open question.
+	"questions": {
+		Table:           "task_questions",
+		BaseFilter:      "tasks.id = task_id",
+		FilterableField: "status",
+		AllowNullCheck:  true,
+	},
 	"created_by": {
 		Table:           "users",
 		BaseFilter:      "tasks.created_by_id = users.id",

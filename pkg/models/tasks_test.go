@@ -979,6 +979,7 @@ func TestHardDeleteTask(t *testing.T) {
 	for _, table := range []string{
 		"task_assignees",
 		"task_comments",
+		"task_questions",
 		"task_attachments",
 		"label_tasks",
 		"task_relations",
